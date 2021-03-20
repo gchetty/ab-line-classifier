@@ -1,5 +1,8 @@
 # LOCAL ARTIFACTS ********************************************************************
-
+data/
+!data/frames/.gitkeep
+!data/partitions/.gitkeep
+!data/serializations/.gitkeep
 
 # PYTHON ***************************************************************************
 # Byte-compiled / optimized / DLL files
