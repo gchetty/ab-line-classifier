@@ -1,92 +1,65 @@
 PATHS:
-  RAW_DATA: ''                # Path to folder containing all raw data
-  ALINE_DATA: ''              # Path to A-line raw data
-  BLINE_DATA: ''              # Path to B-line raw data
-  PROCESSED_DATA: 'data/preprocessed/'
-  TRAIN_SET: 'data/preprocessed/train_set.csv'
-  TEST1_SET: 'data/preprocessed/test1_set.csv'
-  TEST2_SET: 'data/preprocessed/test2_set.csv'
-  ENCOUNTERS_TRAINVAL: 'data/preprocessed/encounters_trainval.csv'
-  ENCOUNTERS_TEST1: 'data/preprocessed/encounters_test1.csv'
-  ENCOUNTERS_TEST2: 'data/preprocessed/encounters_test2.csv'
+  CLIPS_TABLE: 'data/clips_by_patient.csv'
+  FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
+  FRAMES: 'data/frames/'
+  PARTITIONS: 'data/partitions/'
   GEN_IMAGES: 'documents/generated_images/'
   LOGS: 'results/logs/'
   IMAGES: 'documents/generated_images/'
   MODEL_WEIGHTS: 'results/models/'
   MODEL_TO_LOAD: 'results/models/finalmodel.h5'
-  OUTPUT_CLASS_INDICES: './data/serializations/output_class_indices.pkl'
+  CLASS_NAME_MAP: './data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
 
 DATA:
-  IMG_DIM: [600, 600]
-  VAL_SPLIT: 0.08
-  TEST1_SPLIT: 0.08
-  TEST2_SPLIT: 0.08
-  CLASSES: ['ALINE', 'BLINE']                   # Classes for binary classification
+  IMG_DIM: [256, 256]
+  VAL_SPLIT: 0.1
+  TEST_SPLIT: 0.1
+  CLASSES: ['ALINE', 'MILD_BLINE', 'MOD_BLINE', 'SEV_BLINE']                   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'xception'                                # One of {'resnet50v2', 'resnet101v2', 'inceptionv3', 'vgg16', 'mobilenetv2', 'inceptionresnetv2', 'xception', 'custom_resnet', 'custom_ffcnn'}
-  #CLASS_MULTIPLIER: [1.0, 1.0]                         # Class multiplier for binary classification
-  CLASS_MULTIPLIER: [1.0, 1.0, 1.0]                       # Class multiplier for multiclass classification
-  EXPERIMENT_TYPE: 'single_train'                           # One of {'single_train', 'multi_train', 'hparam_search'}
+  MODEL_DEF: 'efficientnetb7'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
+  EXPERIMENT_TYPE: 'single_train'                           # One of {'single_train'}
   BATCH_SIZE: 16
-  EPOCHS: 300
+  EPOCHS: 3
   PATIENCE: 3
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
-  NUM_RUNS: 10
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
+  DATA_AUG:
+    ZOOM_RANGE: 0.1
+    HORIZONTAL_FLIP: true
+    WIDTH_SHIFT_RANGE: 0.2
+    HEIGHT_SHIFT_RANGE: 0.2
+    SHEAR_RANGE: 20
+    ROTATION_RANGE: 20
+    BRIGHTNESS_RANGE: [0.8, 1.2]
 
 NN:
   MOBILENETV2:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
   SHUFFLENETV2:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
   VGG16:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
-  RESNET50V2:
-    LR: 0.1
-    DROPOUT: 0.5
-    L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
-  RESNET101V2:
-    LR: 0.1
-    DROPOUT: 0.5
-    L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
-  INCEPTIONV3:
-    LR: 0.1
-    DROPOUT: 0.5
-    L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
   XCEPTION:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
-  DENSENET:
-    LR: 0.1
-    DROPOUT: 0.5
-    L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
   BiTR50x1:
     #https://blog.tensorflow.org/2020/05/bigtransfer-bit-state-of-art-transfer-learning-computer-vision.html
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
   EFFICIENTNETB7:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    OPTIMIZER: 'adam'
+    FROZEN_LAYERS: []

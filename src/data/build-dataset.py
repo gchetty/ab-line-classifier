@@ -4,7 +4,8 @@ import os
 import cv2
 import glob
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split
+
+cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
 def to_greyscale(img):
     '''
@@ -26,14 +27,43 @@ def mp4_to_images(mp4_path):
     idx = 0
     max_area = 0
     max_area_id = 0
+    image_paths = []
     while (True):
         ret, frame = vc.read()
         if not ret:
             break   # End of frames reached
-        img_path = vid_dir + '/' + mp4_filename + '_' + str(idx) + '.jpg'
-        cv2.imwrite(img_path, frame) # Save all the images out
+        image_path = mp4_filename + '_' + str(idx) + '.jpg'
+        image_paths.append(image_path)
+        cv2.imwrite(cfg['PATHS']['FRAMES'] + '/' + image_path, frame) # Save all the images out
         idx += 1
+    return image_paths
 
+
+def create_image_dataset(query_df_path):
     '''
-    Add sanity check?
+    Create a dataset of frames, including their patient ID and class
+    :param query_df_path: File name of the CSV file containing the database query results for clips
     '''
+
+    query_df = pd.read_csv(query_df_path)
+    clip_dfs = []
+
+    for index, row in tqdm(query_df.iterrows()):
+        for mp4_file in glob.glob(row['Path'] + '/*.mp4'):
+            image_paths = mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
+            clip_df = pd.DataFrame({'Frame Path': image_paths, 'Patient': row['Patient'], 'Class': row['Class'],
+                                    'Class Name': cfg['DATA']['CLASSES'][row['Class']]})
+            clip_dfs.append(clip_df)
+    all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
+    all_clips_df.to_csv(cfg['PATHS']['FRAME_TABLE'], index=False)
+    return
+
+
+if __name__=='__main__':
+    create_image_dataset(cfg['PATHS']['CLIPS_TABLE'])
+
+
+
+
+
+
