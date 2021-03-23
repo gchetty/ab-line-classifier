@@ -187,6 +187,91 @@ def train_model(frame_df, callbacks, verbose=1):
     return model, test_metrics, test_generator
 
 
+def log_test_results(model, test_generator, test_metrics, log_dir):
+    '''
+    Visualize performance of a trained model on the test set. Optionally save the model.
+    :param cfg: Project config
+    :param model: A trained Keras model
+    :param test_generator: A Keras generator for the test set
+    :param test_metrics: Dict of test set performance metrics
+    :param log_dir: Path to write TensorBoard logs
+    '''
+
+    # Visualization of test results
+    test_predictions = model.predict(test_generator, verbose=0)
+    test_labels = test_generator.labels
+    plt = plot_roc(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    roc_img = plot_to_tensor()
+    plt = plot_confusion_matrix(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    cm_img = plot_to_tensor()
+
+    # Log test set results and plots in TensorBoard
+    writer = tf_summary.create_file_writer(logdir=log_dir)
+
+    # Create table of test set metrics
+    test_summary_str = [['**Metric**','**Value**']]
+    for metric in test_metrics:
+        metric_values = test_metrics[metric]
+        test_summary_str.append([metric, str(metric_values)])
+
+    # Create table of model and train hyperparameters used in this experiment
+    hparam_summary_str = [['**Variable**', '**Value**']]
+    for key in cfg['TRAIN']:
+        hparam_summary_str.append([key, str(cfg['TRAIN'][key])])
+    for key in cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()]:
+        hparam_summary_str.append([key, str(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()][key])])
+
+    # Write to TensorBoard logs
+    with writer.as_default():
+        tf_summary.text(name='Test set metrics', data=tf.convert_to_tensor(test_summary_str), step=0)
+        tf_summary.text(name='Run hyperparameters', data=tf.convert_to_tensor(hparam_summary_str), step=0)
+        tf_summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
+        tf_summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
+    return
+
+def train_experiment(save_weights=True, write_logs=True):
+    '''
+    Defines and trains COVID US model according to selected experiment type. Prints and logs relevant metrics.
+    :param experiment: The type of training experiment. Choices are currently {'single_train'}
+    :param save_weights: A flag indicating whether to save the model weights
+    :param write_logs: A flag indicating whether to write TensorBoard logs
+    :return: A dictionary of metrics on the test set
+    '''
+    
+    # Enable mixed precision if desired
+    if cfg['TRAIN']['MIXED_PRECISION']:
+        os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
+
+    # Set logs directory
+    cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_dir = cfg['PATHS']['LOGS'] + "training/" + cur_date if write_logs else None
+    if not os.path.exists(cfg['PATHS']['LOGS'] + "training/"):
+        os.makedirs(cfg['PATHS']['LOGS'] + "training/")
+    if sys.platform.startswith('win'):
+        log_dir = log_dir.replace('/', '\\')    # On Windows, path separators must be '\\' to work with TensorBoard
+
+    # Load dataset file paths and labels
+    data = {}
+    encounter_df_trainval = pd.read_csv(cfg['PATHS']['ENCOUNTERS_TRAINVAL'])
+    data['TEST1'] = pd.read_csv(cfg['PATHS']['TEST1_SET'])
+
+    # Set training callbacks.
+    callbacks = define_callbacks(cfg)
+
+    if write_logs:
+        tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
+        callbacks.append(tensorboard)
+    model, test_metrics, test_generator = train_model(frame_df, callbacks, verbose=1)
+    if write_logs:
+        log_test_results(cfg, model, test_generator, test_metrics, log_dir)
+    
+    if save_weights:
+        model_path = cfg['PATHS']['MODEL_WEIGHTS'] + 'model' + cur_date + '.h5'
+        save_model(model, model_path)  # Save the model's weights
+    
+    return
+
+
 if __name__=='__main__':
 
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])

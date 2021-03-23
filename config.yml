@@ -5,7 +5,7 @@ PATHS:
   PARTITIONS: 'data/partitions/'
   GEN_IMAGES: 'documents/generated_images/'
   LOGS: 'results/logs/'
-  IMAGES: 'documents/generated_images/'
+  IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
   MODEL_TO_LOAD: 'results/models/finalmodel.h5'
   CLASS_NAME_MAP: './data/serializations/output_class_indices.pkl'

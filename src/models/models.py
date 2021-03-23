@@ -23,9 +23,11 @@ def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, outpu
     '''
 
     # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -47,9 +49,10 @@ def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, outpu
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
@@ -69,9 +72,11 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     '''
 
     # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -93,9 +98,10 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
@@ -115,9 +121,11 @@ def xception(model_config, input_shape, metrics, mixed_precision=False, output_b
     '''
 
      # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -139,9 +147,10 @@ def xception(model_config, input_shape, metrics, mixed_precision=False, output_b
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
