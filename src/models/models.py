@@ -101,7 +101,7 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     X = GlobalAveragePooling2D()(X)
     X = Dropout(dropout)(X)
     X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
-    Y = Activation('softmax', dtype='float32', name='output')(X)
+    Y = Activation('sigmoid', dtype='float32', name='output')
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)

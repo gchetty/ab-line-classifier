@@ -19,7 +19,7 @@ from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_prepro
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input as inceptionresnetv2_preprocess
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
-from src.models.models import *
+from models.models import *
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
