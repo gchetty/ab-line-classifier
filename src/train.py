@@ -23,6 +23,9 @@ from models.models import *
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
+for device in tf.config.experimental.list_physical_devices("GPU"):
+    tf.config.experimental.set_memory_growth(device, True)
+
 def get_class_weights(histogram):
     '''
     Computes weights for each class to be applied in the loss function during training.
@@ -48,7 +51,7 @@ def define_callbacks(patience):
                                    restore_best_weights=True)
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=patience // 2 + 1, verbose=1,
                                   min_lr=1e-8, min_delta=0.0001)
-    callbacks = [early_stopping]
+    callbacks = [early_stopping, reduce_lr]
     return callbacks
 
 
@@ -70,6 +73,9 @@ def partition_dataset(frame_df, val_split, test_split, save_dfs=True):
     train_df = frame_df[frame_df['Patient'].isin(train_pts)]
     val_df = frame_df[frame_df['Patient'].isin(val_pts)]
     test_df = frame_df[frame_df['Patient'].isin(test_pts)]
+
+    if not os.path.exists(cfg['PATHS']['PARTITIONS']):
+        os.makedirs(cfg['PATHS']['PARTITIONS'])
 
     if save_dfs:
         cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -166,7 +172,7 @@ def train_model(frame_df, callbacks, verbose=1):
     histogram = np.bincount(train_df['Class'].astype(int))
     output_bias = np.log([histogram[i] / (np.sum(histogram) - histogram[i]) for i in range(histogram.shape[0])])
 
-    model = model_def(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()], input_shape, metrics, n_classes,
+    model = model_def(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()], input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
                       mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias)
 
     # Train the model.

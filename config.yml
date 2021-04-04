@@ -8,22 +8,23 @@ PATHS:
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
   MODEL_TO_LOAD: 'results/models/finalmodel.h5'
-  CLASS_NAME_MAP: './data/serializations/output_class_indices.pkl'
+  CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
 
 DATA:
-  IMG_DIM: [256, 256]
+  IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
-  CLASSES: ['a_lines', 'b_lines_<_3', 'b_lines-_moderate_(<50%_pleural_line)', 'b_lines-_severe_(>50%_pleural_line)']   # Classes for binary classification
+  CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'vgg16'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
+  MODEL_DEF: 'mobilenetv2'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
   EXPERIMENT_TYPE: 'single_train'                           # One of {'single_train'}
+  N_CLASSES: 2
   BATCH_SIZE: 32
   EPOCHS: 200
-  PATIENCE: 10
+  PATIENCE: 5
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -38,17 +39,20 @@ TRAIN:
 
 NN:
   MOBILENETV2:
-    LR: 0.1
+    LR: 0.01
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
+    FROZEN_LAYERS: []
   SHUFFLENETV2:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
   VGG16:
-    LR: 0.1
+    LR: 0.01
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
+    NODES_DENSE0: 64
+    FROZEN_LAYERS: []
   XCEPTION:
     LR: 0.1
     DROPOUT: 0.5
