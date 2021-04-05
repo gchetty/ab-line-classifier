@@ -4,6 +4,8 @@ data/
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
 
+results/
+
 # PYTHON ***************************************************************************
 # Byte-compiled / optimized / DLL files
 __pycache__/
