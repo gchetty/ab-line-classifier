@@ -28,6 +28,7 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
     dropout = model_config['DROPOUT']
     l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
+    node_dense0 = model_config['NODES_DENSE0']
     frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
@@ -110,7 +111,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
 
-def xception(model_config, input_shape, metrics, mixed_precision=False, output_bias=None):
+def xception(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None):
     '''
     Defines a model based on a pretrained Xception for bianry US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -190,10 +191,10 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     base_model = EfficientNetB7(weights='imagenet', input_shape=input_shape, include_top=False, input_tensor=X_input)
 
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    # for layers in range(len(frozen_layers)):
+    #     layer2freeze = frozen_layers[layers]
+    #     print('Freezing layer: ' + str(layer2freeze))
+    #     base_model.layers[layer2freeze].trainable = False
 
     X = base_model.output
 

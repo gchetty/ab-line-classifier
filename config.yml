@@ -3,6 +3,7 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   FRAMES: 'data/frames/'
   PARTITIONS: 'data/partitions/'
+  TEST_DF: 'data/partitions/test_set.csv'
   GEN_IMAGES: 'documents/generated_images/'
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
@@ -19,12 +20,12 @@ DATA:
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'mobilenetv2'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
+  MODEL_DEF: 'xception'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
   EXPERIMENT_TYPE: 'single_train'                           # One of {'single_train'}
   N_CLASSES: 2
-  BATCH_SIZE: 32
+  BATCH_SIZE: 16
   EPOCHS: 200
-  PATIENCE: 5
+  PATIENCE: 10
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -42,6 +43,7 @@ NN:
     LR: 0.01
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
+    NODES_DENSE0: 32
     FROZEN_LAYERS: []
   SHUFFLENETV2:
     LR: 0.1
@@ -54,8 +56,9 @@ NN:
     NODES_DENSE0: 64
     FROZEN_LAYERS: []
   XCEPTION:
-    LR: 0.1
+    LR: 0.01
     DROPOUT: 0.5
+    FROZEN_LAYERS: []
     L2_LAMBDA: 0.01
   BiTR50x1:
     #https://blog.tensorflow.org/2020/05/bigtransfer-bit-state-of-art-transfer-learning-computer-vision.html

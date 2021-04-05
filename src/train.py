@@ -5,6 +5,7 @@ import dill
 import datetime
 import numpy as np
 from math import ceil
+import sys
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.metrics import Precision, Recall, AUC
@@ -47,11 +48,12 @@ def define_callbacks(patience):
     :param cfg: Project config object
     :return: list of Keras callbacks
     '''
-    early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=patience, mode='min',
+    early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=patience // 2 + 1, verbose=1,
+    print(type(patience))
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=cfg['TRAIN']['PATIENCE'] // 2 + 1, verbose=1,
                                   min_lr=1e-8, min_delta=0.0001)
-    callbacks = [early_stopping, reduce_lr]
+    callbacks = [early_stopping]
     return callbacks
 
 
@@ -79,9 +81,9 @@ def partition_dataset(frame_df, val_split, test_split, save_dfs=True):
 
     if save_dfs:
         cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        train_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'train_set_' + cur_date + '.csv')
-        val_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'val_set_' + cur_date + '.csv')
-        test_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'test_set_' + cur_date + '.csv')
+        train_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'train_set.csv')
+        val_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'val_set.csv')
+        test_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'test_set.csv')
     return train_df, val_df, test_df
 
 
@@ -192,8 +194,7 @@ def train_model(frame_df, callbacks, verbose=1):
         test_summary_str.append([metric, str(value)])
     return model, test_metrics, test_generator
 
-
-def log_test_results(model, test_generator, test_metrics, log_dir):
+def log_test_results(cfg, model, test_generator, test_metrics, log_dir):
     '''
     Visualize performance of a trained model on the test set. Optionally save the model.
     :param cfg: Project config
@@ -257,9 +258,9 @@ def train_experiment(save_weights=True, write_logs=True):
         log_dir = log_dir.replace('/', '\\')    # On Windows, path separators must be '\\' to work with TensorBoard
 
     # Load dataset file paths and labels
-    data = {}
-    encounter_df_trainval = pd.read_csv(cfg['PATHS']['ENCOUNTERS_TRAINVAL'])
-    data['TEST1'] = pd.read_csv(cfg['PATHS']['TEST1_SET'])
+    #data = {}
+    #encounter_df_trainval = pd.read_csv(cfg['PATHS']['ENCOUNTERS_TRAINVAL'])
+    #data['test'] = pd.read_csv(cfg['PATHS']['TEST_DF'])
 
     # Set training callbacks.
     callbacks = define_callbacks(cfg)
@@ -282,4 +283,4 @@ if __name__=='__main__':
 
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
     callbacks = define_callbacks(cfg['TRAIN']['PATIENCE'])
-    model, test_metrics, test_generator = train_model(frame_df, callbacks)
+    model, test_metrics, test_generator = train_experiment(frame_df, callbacks)
