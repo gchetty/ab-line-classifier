@@ -6,12 +6,13 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.initializers import Constant
 from tensorflow.keras.applications.resnet_v2 import ResNet50V2, ResNet101V2
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications import EfficientNetB7
 
-def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, output_bias=None):
+def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
     '''
     Defines a model based on a pretrained MobileNetV2 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -23,9 +24,12 @@ def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, outpu
     '''
 
     # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    node_dense0 = model_config['NODES_DENSE0']
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -47,9 +51,10 @@ def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, outpu
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
@@ -57,7 +62,7 @@ def mobilenetv2(model_config, input_shape, metrics, mixed_precision=False, outpu
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
     
-def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias=None):
+def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None):
     '''
     Defines a model based on a pretrained VGG16 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -69,9 +74,11 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     '''
 
     # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -93,9 +100,10 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
@@ -103,7 +111,7 @@ def vgg16(model_config, input_shape, metrics, mixed_precision=False, output_bias
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
 
-def xception(model_config, input_shape, metrics, mixed_precision=False, output_bias=None):
+def xception(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None):
     '''
     Defines a model based on a pretrained Xception for bianry US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -115,9 +123,11 @@ def xception(model_config, input_shape, metrics, mixed_precision=False, output_b
     '''
 
      # Set hyperparameters
-    '''
-    ADD HYPERPARAMETERS HERE
-    '''
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -139,9 +149,10 @@ def xception(model_config, input_shape, metrics, mixed_precision=False, output_b
     X = base_model.output
 
     # Add custom top layers
-    '''
-    ADD CUSTOM TOP LAYERS HERE
-    '''
+    X = GlobalAveragePooling2D()(X)
+    X = Dropout(dropout)(X)
+    X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
+    Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
@@ -180,10 +191,10 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     base_model = EfficientNetB7(weights='imagenet', input_shape=input_shape, include_top=False, input_tensor=X_input)
 
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    # for layers in range(len(frozen_layers)):
+    #     layer2freeze = frozen_layers[layers]
+    #     print('Freezing layer: ' + str(layer2freeze))
+    #     base_model.layers[layer2freeze].trainable = False
 
     X = base_model.output
 

@@ -5,6 +5,7 @@ import dill
 import datetime
 import numpy as np
 from math import ceil
+import sys
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.metrics import Precision, Recall, AUC
@@ -19,9 +20,12 @@ from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_prepro
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input as inceptionresnetv2_preprocess
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
-from src.models.models import *
+from models.models import *
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
+
+for device in tf.config.experimental.list_physical_devices("GPU"):
+    tf.config.experimental.set_memory_growth(device, True)
 
 def get_class_weights(histogram):
     '''
@@ -44,9 +48,10 @@ def define_callbacks(patience):
     :param cfg: Project config object
     :return: list of Keras callbacks
     '''
-    early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=patience, mode='min',
+    early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=patience // 2 + 1, verbose=1,
+    print(type(patience))
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=cfg['TRAIN']['PATIENCE'] // 2 + 1, verbose=1,
                                   min_lr=1e-8, min_delta=0.0001)
     callbacks = [early_stopping]
     return callbacks
@@ -71,11 +76,14 @@ def partition_dataset(frame_df, val_split, test_split, save_dfs=True):
     val_df = frame_df[frame_df['Patient'].isin(val_pts)]
     test_df = frame_df[frame_df['Patient'].isin(test_pts)]
 
+    if not os.path.exists(cfg['PATHS']['PARTITIONS']):
+        os.makedirs(cfg['PATHS']['PARTITIONS'])
+
     if save_dfs:
         cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        train_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'train_set_' + cur_date + '.csv')
-        val_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'val_set_' + cur_date + '.csv')
-        test_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'test_set_' + cur_date + '.csv')
+        train_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'train_set.csv')
+        val_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'val_set.csv')
+        test_df.to_csv(cfg['PATHS']['PARTITIONS'] + 'test_set.csv')
     return train_df, val_df, test_df
 
 
@@ -166,7 +174,7 @@ def train_model(frame_df, callbacks, verbose=1):
     histogram = np.bincount(train_df['Class'].astype(int))
     output_bias = np.log([histogram[i] / (np.sum(histogram) - histogram[i]) for i in range(histogram.shape[0])])
 
-    model = model_def(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()], input_shape, metrics, n_classes,
+    model = model_def(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()], input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
                       mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias)
 
     # Train the model.
@@ -186,9 +194,93 @@ def train_model(frame_df, callbacks, verbose=1):
         test_summary_str.append([metric, str(value)])
     return model, test_metrics, test_generator
 
+def log_test_results(cfg, model, test_generator, test_metrics, log_dir):
+    '''
+    Visualize performance of a trained model on the test set. Optionally save the model.
+    :param cfg: Project config
+    :param model: A trained Keras model
+    :param test_generator: A Keras generator for the test set
+    :param test_metrics: Dict of test set performance metrics
+    :param log_dir: Path to write TensorBoard logs
+    '''
+
+    # Visualization of test results
+    test_predictions = model.predict(test_generator, verbose=0)
+    test_labels = test_generator.labels
+    plt = plot_roc(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    roc_img = plot_to_tensor()
+    plt = plot_confusion_matrix(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    cm_img = plot_to_tensor()
+
+    # Log test set results and plots in TensorBoard
+    writer = tf_summary.create_file_writer(logdir=log_dir)
+
+    # Create table of test set metrics
+    test_summary_str = [['**Metric**','**Value**']]
+    for metric in test_metrics:
+        metric_values = test_metrics[metric]
+        test_summary_str.append([metric, str(metric_values)])
+
+    # Create table of model and train hyperparameters used in this experiment
+    hparam_summary_str = [['**Variable**', '**Value**']]
+    for key in cfg['TRAIN']:
+        hparam_summary_str.append([key, str(cfg['TRAIN'][key])])
+    for key in cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()]:
+        hparam_summary_str.append([key, str(cfg['NN'][cfg['TRAIN']['MODEL_DEF'].upper()][key])])
+
+    # Write to TensorBoard logs
+    with writer.as_default():
+        tf_summary.text(name='Test set metrics', data=tf.convert_to_tensor(test_summary_str), step=0)
+        tf_summary.text(name='Run hyperparameters', data=tf.convert_to_tensor(hparam_summary_str), step=0)
+        tf_summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
+        tf_summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
+    return
+
+def train_experiment(save_weights=True, write_logs=True):
+    '''
+    Defines and trains COVID US model according to selected experiment type. Prints and logs relevant metrics.
+    :param experiment: The type of training experiment. Choices are currently {'single_train'}
+    :param save_weights: A flag indicating whether to save the model weights
+    :param write_logs: A flag indicating whether to write TensorBoard logs
+    :return: A dictionary of metrics on the test set
+    '''
+    
+    # Enable mixed precision if desired
+    if cfg['TRAIN']['MIXED_PRECISION']:
+        os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
+
+    # Set logs directory
+    cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_dir = cfg['PATHS']['LOGS'] + "training/" + cur_date if write_logs else None
+    if not os.path.exists(cfg['PATHS']['LOGS'] + "training/"):
+        os.makedirs(cfg['PATHS']['LOGS'] + "training/")
+    if sys.platform.startswith('win'):
+        log_dir = log_dir.replace('/', '\\')    # On Windows, path separators must be '\\' to work with TensorBoard
+
+    # Load dataset file paths and labels
+    #data = {}
+    #encounter_df_trainval = pd.read_csv(cfg['PATHS']['ENCOUNTERS_TRAINVAL'])
+    #data['test'] = pd.read_csv(cfg['PATHS']['TEST_DF'])
+
+    # Set training callbacks.
+    callbacks = define_callbacks(cfg)
+
+    if write_logs:
+        tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
+        callbacks.append(tensorboard)
+    model, test_metrics, test_generator = train_model(frame_df, callbacks, verbose=1)
+    if write_logs:
+        log_test_results(cfg, model, test_generator, test_metrics, log_dir)
+    
+    if save_weights:
+        model_path = cfg['PATHS']['MODEL_WEIGHTS'] + 'model' + cur_date + '.h5'
+        save_model(model, model_path)  # Save the model's weights
+    
+    return
+
 
 if __name__=='__main__':
 
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
     callbacks = define_callbacks(cfg['TRAIN']['PATIENCE'])
-    model, test_metrics, test_generator = train_model(frame_df, callbacks)
+    model, test_metrics, test_generator = train_experiment(frame_df, callbacks)
