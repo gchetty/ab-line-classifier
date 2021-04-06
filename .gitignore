@@ -3,8 +3,13 @@ data/
 !data/frames/.gitkeep
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
-
 results/
+!results/figures/.gitkeep
+!results/logs/.gitkeep
+!results/models/.gitkeep
+img/heatmaps
+!img/heatmaps/.gitkeep
+
 
 # PYTHON ***************************************************************************
 # Byte-compiled / optimized / DLL files
@@ -227,3 +232,15 @@ debugpy*.log
 pydevd*.log
 nodeLanguageServer/**
 nodeLanguageServer.*/**
+
+
+# VSCODE ********************************************************************
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Local History for Visual Studio Code
+.history/

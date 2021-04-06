@@ -1,16 +1,37 @@
 import tensorflow as tf 
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Dense, Conv2D, MaxPool2D, Flatten, Dropout, Input, LeakyReLU, BatchNormalization, \
-    Activation, Add, GlobalAveragePooling2D, ZeroPadding2D, AveragePooling2D
+from tensorflow.keras.layers import Dense, Dropout, Input, Activation, GlobalAveragePooling2D
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import Constant
-from tensorflow.keras.applications.resnet_v2 import ResNet50V2, ResNet101V2
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
 from tensorflow.keras.applications.vgg16 import VGG16
-from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications import EfficientNetB7
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobilenetv2_preprocess
+from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
+from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
+from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
+
+def get_model(model_name):
+    '''
+    Return the model definition and associated preprocessing function as specified in the config file
+    :return: (TF model definition function, preprocessing function)
+    '''
+
+    if model_name == 'efficientnetb7':
+        model_def = efficientnetb7
+        preprocessing_function = efficientnet_preprocess
+    elif model_name == 'vgg16':
+        model_def = vgg16
+        preprocessing_function = vgg16_preprocess
+    elif model_name == 'mobilenetv2':
+        model_def = mobilenetv2
+        preprocessing_function = mobilenetv2_preprocess
+    else:
+        model_def = xception
+        preprocessing_function = xception_preprocess
+    return model_def, preprocessing_function
 
 def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
     '''

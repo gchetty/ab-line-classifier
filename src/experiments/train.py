@@ -13,14 +13,7 @@ from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.models import save_model
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications.resnet_v2 import preprocess_input as resnet_preprocess
-from tensorflow.keras.applications.inception_v3 import preprocess_input as inceptionv3_preprocess
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobilenetv2_preprocess
-from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
-from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
-from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input as inceptionresnetv2_preprocess
-from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
-from models.models import *
+from src.models.models import *
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -87,27 +80,6 @@ def partition_dataset(frame_df, val_split, test_split, save_dfs=True):
     return train_df, val_df, test_df
 
 
-def get_model():
-    '''
-    Return the model definition and associated preprocessing function as specified in the config file
-    :return: (TF model definition function, preprocessing function)
-    '''
-
-    if cfg['TRAIN']['MODEL_DEF'] == 'efficientnetb7':
-        model_def = efficientnetb7
-        preprocessing_function = efficientnet_preprocess
-    elif cfg['TRAIN']['MODEL_DEF'] == 'vgg16':
-        model_def = vgg16
-        preprocessing_function = vgg16_preprocess
-    elif cfg['TRAIN']['MODEL_DEF'] == 'mobilenetv2':
-        model_def = mobilenetv2
-        preprocessing_function = mobilenetv2_preprocess
-    else:
-        model_def = xception
-        preprocessing_function = xception_preprocess
-    return model_def, preprocessing_function
-
-
 def train_model(frame_df, callbacks, verbose=1):
     '''
     Train a and evaluate model on given data.
@@ -119,7 +91,7 @@ def train_model(frame_df, callbacks, verbose=1):
     '''
 
     train_df, val_df, test_df = partition_dataset(frame_df, cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'])
-    model_def, preprocessing_fn = get_model()
+    model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
 
     # Create ImageDataGenerators. For training data: randomly zoom, stretch, horizontally flip image as data augmentation.
     train_img_gen = ImageDataGenerator(zoom_range=cfg['TRAIN']['DATA_AUG']['ZOOM_RANGE'],
@@ -256,11 +228,6 @@ def train_experiment(save_weights=True, write_logs=True):
         os.makedirs(cfg['PATHS']['LOGS'] + "training/")
     if sys.platform.startswith('win'):
         log_dir = log_dir.replace('/', '\\')    # On Windows, path separators must be '\\' to work with TensorBoard
-
-    # Load dataset file paths and labels
-    #data = {}
-    #encounter_df_trainval = pd.read_csv(cfg['PATHS']['ENCOUNTERS_TRAINVAL'])
-    #data['test'] = pd.read_csv(cfg['PATHS']['TEST_DF'])
 
     # Set training callbacks.
     callbacks = define_callbacks(cfg)

@@ -4,11 +4,11 @@ PATHS:
   FRAMES: 'data/frames/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
-  GEN_IMAGES: 'documents/generated_images/'
+  HEATMAPS: 'img/heatmaps'
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/finalmodel.h5'
+  MODEL_TO_LOAD: 'results/models/model.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
@@ -17,7 +17,8 @@ DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
-  CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
+  #CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
+  CLASSES: ['COVID', 'NCOVID', 'SMOOTH']
 
 TRAIN:
   MODEL_DEF: 'xception'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
