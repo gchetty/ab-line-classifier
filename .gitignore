@@ -7,6 +7,7 @@ results/
 !results/figures/.gitkeep
 !results/logs/.gitkeep
 !results/models/.gitkeep
+!results/experiments/.gitkeep
 img/heatmaps
 !img/heatmaps/.gitkeep
 
