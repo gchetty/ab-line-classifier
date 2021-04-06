@@ -1,7 +1,7 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patient.csv'
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
-  FRAMES: 'data/frames/'
+  FRAMES: 'D:\\Documents\\Data\\ab-frames' #'data/frames/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
@@ -12,24 +12,25 @@ PATHS:
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
+  EXPERIMENTS: './results/experiments'
 
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
-  #CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
-  CLASSES: ['COVID', 'NCOVID', 'SMOOTH']
+  CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'xception'                               # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7}
-  EXPERIMENT_TYPE: 'single_train'                           # One of {'single_train'}
+  MODEL_DEF: 'mobilenetv2'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
+  EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 16
-  EPOCHS: 200
+  BATCH_SIZE: 64
+  EPOCHS: 50
   PATIENCE: 10
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
+  N_FOLDS: 10
   DATA_AUG:
     ZOOM_RANGE: 0.1
     HORIZONTAL_FLIP: true
@@ -38,8 +39,11 @@ TRAIN:
     SHEAR_RANGE: 20
     ROTATION_RANGE: 20
     BRIGHTNESS_RANGE: [0.8, 1.2]
+  HPARAM_SEARCH:
+    N_EVALS: 500
+    HPARAM_OBJECTIVE: 'auc'
 
-NN:
+HPARAMS:
   MOBILENETV2:
     LR: 0.01
     DROPOUT: 0.5
@@ -71,3 +75,12 @@ NN:
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
     FROZEN_LAYERS: []
+
+HPARAM_SEARCH:
+  MOBILENETV2:
+    LR:
+      TYPE: 'float_log'
+      RANGE: [0.00001, 0.001]
+    DROPOUT:
+      TYPE: 'float_uniform'
+      RANGE: [0.0, 0.5]
