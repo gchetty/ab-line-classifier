@@ -47,9 +47,9 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
     # Set hyperparameters
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
-    l2_lambda = model_config['L2_LAMBDA']
+    weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    node_dense0 = model_config['NODES_DENSE0']
+    fc0_nodes = model_config['NODES_DENSE0']
     frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
@@ -62,18 +62,21 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
 
     # Start with pretrained MobileNetV2
     X_input = Input(input_shape, name='input')
-    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
+    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input, alpha=0.75)
     
     # Freeze layers
-    '''
-    ADD FROZEN LAYERS HERE
-    '''
+    for layers in range(len(frozen_layers)):
+        layer2freeze = frozen_layers[layers]
+        print('Freezing layer: ' + str(layer2freeze))
+        base_model.layers[layer2freeze].trainable = False
 
     X = base_model.output
 
     # Add custom top layers
     X = GlobalAveragePooling2D()(X)
     X = Dropout(dropout)(X)
+    #X = Dense(fc0_nodes, activation='relu', activity_regularizer=l2(weight_decay), name='fc0')(X)
+    #X = Dropout(dropout)(X)
     X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
     Y = Activation('softmax', dtype='float32', name='output')(X)
 
@@ -97,9 +100,10 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     # Set hyperparameters
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
-    l2_lambda = model_config['L2_LAMBDA']
+    weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
     frozen_layers = model_config['FROZEN_LAYERS']
+    fc0_nodes = model_config['NODES_DENSE0']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -114,9 +118,10 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     base_model = VGG16(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
     
     # Freeze layers
-    '''
-    ADD FROZEN LAYERS HERE
-    '''
+    for layers in range(len(frozen_layers)):
+        layer2freeze = frozen_layers[layers]
+        print('Freezing layer: ' + str(layer2freeze))
+        base_model.layers[layer2freeze].trainable = False
     
     X = base_model.output
 

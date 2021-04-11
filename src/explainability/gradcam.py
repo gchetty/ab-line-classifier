@@ -115,5 +115,6 @@ class GradCAMExplainer:
 
 if __name__ == '__main__':
     gradcam = GradCAMExplainer()
-    gradcam.get_heatmap_for_frame()
+    while True:
+        gradcam.get_heatmap_for_frame()
 
