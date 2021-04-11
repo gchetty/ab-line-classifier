@@ -46,12 +46,12 @@ def visualize_heatmap(orig_img, heatmap, img_filename, label, probs, class_names
 
     # Display some information about the example
     pred_class = np.argmax(probs)
-    fig.text(0.02, 0.92, "Prediction probabilities for: " + str(class_names) + ': ' +
+    fig.text(0.02, 0.90, "Prediction probabilities for: " + str(class_names) + ': ' +
              str(['{:.2f}'.format(probs[i]) for i in range(len(probs))]), fontsize=10)
-    fig.text(0.02, 0.94, "Predicted Class: " + str(pred_class) + ' (' + class_names[pred_class] + ')', fontsize=10)
+    fig.text(0.02, 0.92, "Predicted Class: " + str(pred_class) + ' (' + class_names[pred_class] + ')', fontsize=10)
     if label is not None:
-        fig.text(0.02, 0.96, "Ground Truth Class: " + str(label) + ' (' + class_names[label] + ')', fontsize=10)
-    fig.suptitle("Grad-CAM heatmap for image " + img_filename, fontsize=12, fontweight='bold')
+        fig.text(0.02, 0.94, "Ground Truth Class: " + str(label) + ' (' + class_names[label] + ')', fontsize=10)
+    fig.suptitle("Grad-CAM heatmap for image " + img_filename, fontsize=8, fontweight='bold')
     fig.tight_layout()
 
     # Save the image
