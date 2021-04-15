@@ -40,7 +40,7 @@ def create_ABline_dataframe(database_query):
     df = df[['filename'] + COLUMNS_WANTED + ['class'] + ['Path']]
 
     # Save df - append this csv to the previous csv 'clips_by_patient_2.csv'
-    df.to_csv(r'/home/derekwu/git repos/ab-line-classifer/data/clips_by_patient_2.csv', index=False)
+    df.to_csv(cfg['PATHS']['CLIPS_TABLE'], index=False)
 
     return df
 
