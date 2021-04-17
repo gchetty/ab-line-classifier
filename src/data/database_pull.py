@@ -11,7 +11,7 @@ def data_pull():
     Pull raw clips from AWS database using a generated query in csv format
     '''
     output_folder = cfg['PATHS']['RAW_CLIPS']
-    df = pd.read_csv(cfg['PATHS']['DATABASE_QUERY'])
+    df = pd.read_csv(cfg['PATHS']['CLIPS_TABLE'])
 
     print('Getting AWS links...')
 

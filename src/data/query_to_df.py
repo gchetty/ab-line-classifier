@@ -35,9 +35,11 @@ def create_ABline_dataframe(database_query):
     df['a_or_b_lines'] = df['a_or_b_lines'].replace({'b_lines_<_3': 'b_lines', 'b_lines-_moderate_(<50%_pleural_line)': 'b_lines', 'b_lines-_severe_(>50%_pleural_line)': 'b_lines'})
 
     df['Path'] = df.apply(lambda row: '/home/derekwu/git repos/ab-line-classifer/data/masked_clips/' + row.filename, axis=1)
+
+    df['s3_path'] = df.apply(lambda row: row.s3_path, axis=1)
     
     # Finalize dataframe
-    df = df[['filename'] + COLUMNS_WANTED + ['class'] + ['Path']]
+    df = df[['filename'] + COLUMNS_WANTED + ['class'] + ['Path'] + ['s3_path']]
 
     # Save df - append this csv to the previous csv 'clips_by_patient_2.csv'
     df.to_csv(cfg['PATHS']['CLIPS_TABLE'], index=False)

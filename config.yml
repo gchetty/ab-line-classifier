@@ -1,9 +1,9 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patient.csv'
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
-  DATABASE_QUERY: 'data/parenchymal_clips_2.csv'
+  DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'D:\\Documents\\Data\\ab-frames' #'data/frames/'
+  FRAMES: 'data/frames/' #'D:\\Documents\\Data\\ab-frames '
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
