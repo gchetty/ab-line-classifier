@@ -23,10 +23,10 @@ DATA:
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'cnn0'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
+  MODEL_DEF: 'custom_resnetv2'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 64
+  BATCH_SIZE: 32
   EPOCHS: 200
   PATIENCE: 5
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
@@ -88,7 +88,16 @@ HPARAMS:
     BLOCKS: 4
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
-
+  CUSTOM_RESNETV2:
+    LR: 0.001
+    DROPOUT: 0.35
+    L2_LAMBDA: 0.0001
+    NODES_DENSE0: 64
+    KERNEL_SIZE: (3, 3)
+    STRIDES: (1, 1)
+    MAXPOOL_SIZE: (2, 2)
+    BLOCKS: 1
+    INIT_FILTERS: 32
 
 HPARAM_SEARCH:
   MOBILENETV2:

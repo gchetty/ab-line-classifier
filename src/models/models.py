@@ -13,6 +13,7 @@ from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobil
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
+from tensorflow.keras.applications.resnet_v2 import preprocess_input as resnetv2_preprocess
 
 def get_model(model_name):
     '''
@@ -32,6 +33,9 @@ def get_model(model_name):
     elif model_name == 'xception':
         model_def = xception
         preprocessing_function = xception_preprocess
+    elif model_name == 'custom_resnetv2':
+        model_def = custom_resnetv2
+        preprocessing_function = resnetv2_preprocess
     else:
         model_def = cnn0
         preprocessing_function = mobilenetv2_preprocess
@@ -288,3 +292,123 @@ def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, o
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
+
+# Skip Connector for custom ResNetV2
+def residual_block(X, num_filters: int, stride: int = 1, kernel_size: int = 3,
+                   activation: str = 'relu', bn: bool = True, conv_first: bool = True):
+    """
+    :param X: Tensor layer from previous layer
+    :param num_filers: integer, conv2d number of filters
+    :param stride: integer, default 1, stride square dimension
+    :param kernel_size: integer, default 3, conv2d square kernel dimensions
+    :param activation: string, default 'relu', activation function
+    :param bn: bool, default True, to use Batch Normalization
+    :param conv_first: bool, default True, conv-bn-activation (True) or bn-activation-conv (False)
+    """
+    conv_layer = Conv2D(num_filters,
+                        kernel_size=kernel_size,
+                        strides=stride,
+                        padding='same',
+                        kernel_regularizer=l2(1e-4))
+    # X = input
+    if conv_first:
+        X = conv_layer(X)
+        if bn:
+            X = BatchNormalization()(X)
+        if activation is not None:
+            X = Activation(activation)(X)
+            X = Dropout(0.2)(X)
+    else:
+        if bn:
+            X = BatchNormalization()(X)
+        if activation is not None:
+            X = Activation(activation)(X)
+        X = conv_layer(X)
+
+    return X
+
+def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+    '''
+     Defines a model based on a custom ResNetV2 for binary US classification.
+    :param model_config: A dictionary of parameters associated with the model architecture
+    :param input_shape: The shape of the model input
+    :param metrics: Metrics to track model's performance
+    :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
+    :param output_bias: bias initializer of output layer
+    :return: a Keras Model object with the architecture defined in this method
+    '''
+
+    # Set hyperparameters
+    nodes_dense0 = model_config['NODES_DENSE0']
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+    optimizer = Adam(learning_rate=lr)
+    num_filters_in = model_config['INIT_FILTERS']
+    n_blocks = model_config['BLOCKS']
+    stride = eval(model_config['STRIDES'])
+    num_res_block = model_config['BLOCKS']
+    print("MODEL CONFIG: ", model_config)
+
+    X_input = Input(shape=input_shape)
+
+    # ResNet V2 performs Conv2D on X before spiting into two path
+    X = residual_block(X=X_input, num_filters=num_filters_in, conv_first=True)
+
+    # Building stack of residual units
+    for stage in range(3):
+        for unit_res_block in range(num_res_block):
+            activation = 'relu'
+            bn = True
+            stride = 1
+            # First layer and first stage
+            if stage == 0:
+                num_filters_out = num_filters_in * 4
+                if unit_res_block == 0:
+                    activation = None
+                    bn = False
+                # First layer but not first stage
+            else:
+                num_filters_out = num_filters_in * 2
+                if unit_res_block == 0:
+                    stride = 2
+
+            # bottleneck residual unit
+            y = residual_block(X,
+                               num_filters=num_filters_in,
+                               kernel_size=1,
+                               stride=stride,
+                               activation=activation,
+                               bn=bn,
+                               conv_first=False)
+            y = residual_block(y,
+                               num_filters=num_filters_in,
+                               conv_first=False)
+            y = residual_block(y,
+                               num_filters=num_filters_out,
+                               kernel_size=1,
+                               conv_first=False)
+            if unit_res_block == 0:
+                # linear projection residual shortcut connection to match
+                # changed dims
+                X = residual_block(X=X,
+                                   num_filters=num_filters_out,
+                                   kernel_size=1,
+                                   stride=stride,
+                                   activation=None,
+                                   bn=False)
+            X = tf.keras.layers.add([X, y])
+        num_filters_in = num_filters_out
+
+        # Model head
+        X = GlobalAveragePooling2D(name='global_avgpool')(X)
+        X = Dropout(dropout)(X)
+        X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
+                  name='fc0')(X)
+        Y = Dense(n_classes, activation='softmax', dtype='float32', name='output')(X)
+
+        # Set model loss function, optimizer, metrics.
+        model = Model(inputs=X_input, outputs=Y)
+        model.summary()
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
+        return model

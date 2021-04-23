@@ -1,6 +1,5 @@
 # LOCAL ARTIFACTS ********************************************************************
 data/
-!data/frames/.gitkeep
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
 results/
