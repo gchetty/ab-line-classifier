@@ -10,20 +10,20 @@ PATHS:
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/model20210411-193617.h5'
+  MODEL_TO_LOAD: 'results/models/model20210424-174538.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments'
 
 DATA:
-  IMG_DIM: [224, 224]
+  IMG_DIM: [112, 112]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'cnn0'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
+  MODEL_DEF: 'custom_resnetv2'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
   BATCH_SIZE: 64
@@ -40,7 +40,7 @@ TRAIN:
     HEIGHT_SHIFT_RANGE: 0.2
     SHEAR_RANGE: 10
     ROTATION_RANGE: 45
-    BRIGHTNESS_RANGE: [0.8, 1.2]
+    BRIGHTNESS_RANGE: [0.7, 1.3]
   HPARAM_SEARCH:
     N_EVALS: 500
     HPARAM_OBJECTIVE: 'auc'
@@ -88,7 +88,16 @@ HPARAMS:
     BLOCKS: 4
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
-
+  CUSTOM_RESNETV2:
+    LR: 0.001
+    DROPOUT: 0.35
+    L2_LAMBDA: 0.0001
+    NODES_DENSE0: 64
+    KERNEL_SIZE: (3, 3)
+    STRIDES: (1, 1)
+    MAXPOOL_SIZE: (2, 2)
+    BLOCKS: 1
+    INIT_FILTERS: 32
 
 HPARAM_SEARCH:
   MOBILENETV2:
