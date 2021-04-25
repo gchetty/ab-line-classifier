@@ -17,6 +17,9 @@ from tensorflow.keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPla
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from src.models.models import *
 from src.visualization.visualization import *
+import gc
+from tensorflow.keras import backend as k
+from tensorflow.keras.callbacks import Callback
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -46,10 +49,17 @@ def define_callbacks(patience):
     '''
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
-    print(type(patience))
+
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=cfg['TRAIN']['PATIENCE'] // 2 + 1, verbose=1,
                                   min_lr=1e-8, min_delta=0.0001)
-    callbacks = [early_stopping]
+
+    class ClearMemory(Callback):
+        def on_epoch_end(self, epoch, logs=None):
+            gc.collect()
+            k.clear_session()
+
+    callbacks = [early_stopping, reduce_lr, ClearMemory()]
+
     return callbacks
 
 
@@ -208,7 +218,7 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
     val_steps = ceil(val_generator.n / val_generator.batch_size)
     history = model.fit(train_generator, steps_per_epoch=steps_per_epoch, epochs=cfg['TRAIN']['EPOCHS'],
                         validation_data=val_generator, validation_steps=val_steps, callbacks=callbacks,
-                        verbose=verbose, class_weight=None)
+                        verbose=verbose, class_weight=class_weight)
 
     # Save the model's weights
     if save_weights:

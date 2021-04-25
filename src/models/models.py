@@ -345,7 +345,6 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
     num_filters_in = model_config['INIT_FILTERS']
-    n_blocks = model_config['BLOCKS']
     stride = eval(model_config['STRIDES'])
     num_res_block = model_config['BLOCKS']
     print("MODEL CONFIG: ", model_config)
@@ -356,7 +355,7 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     X = residual_block(X=X_input, num_filters=num_filters_in, conv_first=True)
 
     # Building stack of residual units
-    for stage in range(3):
+    for stage in range(2):
         for unit_res_block in range(num_res_block):
             activation = 'relu'
             bn = True
@@ -400,15 +399,15 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
             X = tf.keras.layers.add([X, y])
         num_filters_in = num_filters_out
 
-        # Model head
-        X = GlobalAveragePooling2D(name='global_avgpool')(X)
-        X = Dropout(dropout)(X)
-        X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
-                  name='fc0')(X)
-        Y = Dense(n_classes, activation='softmax', dtype='float32', name='output')(X)
+    # Model head
+    X = GlobalAveragePooling2D(name='global_avgpool')(X)
+    X = Dropout(dropout)(X)
+    #X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
+              #name='fc0')(X)
+    Y = Dense(n_classes, activation='softmax', dtype='float32', name='output')(X)
 
-        # Set model loss function, optimizer, metrics.
-        model = Model(inputs=X_input, outputs=Y)
-        model.summary()
-        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
-        return model
+    # Set model loss function, optimizer, metrics.
+    model = Model(inputs=X_input, outputs=Y)
+    model.summary()
+    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics, run_eagerly=True)
+    return model
