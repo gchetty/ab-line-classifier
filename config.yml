@@ -10,7 +10,7 @@ PATHS:
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/model20210424-174538.h5'
+  MODEL_TO_LOAD: 'results/models/model20210429-193519.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
@@ -28,7 +28,7 @@ TRAIN:
   N_CLASSES: 2
   BATCH_SIZE: 64
   EPOCHS: 200
-  PATIENCE: 5
+  PATIENCE: 7
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -89,10 +89,10 @@ HPARAMS:
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
   CUSTOM_RESNETV2:
-    LR: 0.001
-    DROPOUT: 0.35
-    L2_LAMBDA: 0.0001
-    NODES_DENSE0: 64
+    LR: 0.00001
+    DROPOUT: 0.5
+    L2_LAMBDA: 0.003
+    NODES_DENSE0: 0
     KERNEL_SIZE: (3, 3)
     STRIDES: (1, 1)
     MAXPOOL_SIZE: (2, 2)
