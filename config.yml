@@ -3,32 +3,32 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'data/frames/' #'D:\\Documents\\Data\\ab-frames '
+  FRAMES: 'B:\\Datasets\\ab-frames' #'D:\\Documents\\Data\\ab-frames '
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/model20210424-174538.h5'
+  MODEL_TO_LOAD: 'results/models/model20210509-022555.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments'
 
 DATA:
-  IMG_DIM: [112, 112]
+  IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'custom_resnetv2'                      # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
+  MODEL_DEF: 'cutoffvgg16'                      # One of {'vgg1l6', 'mobilenetv2', 'xception', 'efficientnetb7', 'cutoffmobilenetv2'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 64
-  EPOCHS: 200
-  PATIENCE: 5
+  BATCH_SIZE: 256
+  EPOCHS: 15
+  PATIENCE: 15
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -98,6 +98,14 @@ HPARAMS:
     MAXPOOL_SIZE: (2, 2)
     BLOCKS: 1
     INIT_FILTERS: 32
+  CUTOFFVGG16:
+    LR_EXTRACT: 0.0001
+    LR_FINETUNE: 0.00001
+    DROPOUT: 0.35
+    NODES_DENSE0: 32
+    CUTOFF_LAYER: 10
+    FINETUNE_LAYER: 7
+    EXTRACT_EPOCHS: 10
 
 HPARAM_SEARCH:
   MOBILENETV2:
