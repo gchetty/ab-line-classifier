@@ -10,7 +10,7 @@ PATHS:
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/model20210509-022555.h5'
+  MODEL_TO_LOAD: 'results/models/cutoffvgg_may9.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'

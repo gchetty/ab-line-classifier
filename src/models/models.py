@@ -436,9 +436,9 @@ class CutoffVGG16:
         self.model = self.define_model()
 
     def define_model(self):
-        X_input = Input(shape=self.input_shape)
+        X_input = Input(shape=self.input_shape, name='input')
         vgg16 = VGG16(input_shape=self.input_shape, include_top=False, weights='imagenet')
-        self.vgg16_layers = vgg16.layers[:self.cutoff_layer]
+        self.vgg16_layers = vgg16.layers[1:self.cutoff_layer]
         X = X_input
         for layer in self.vgg16_layers:
             X = layer(X)
@@ -460,8 +460,9 @@ class CutoffVGG16:
         for layer in self.vgg16_layers[self.finetune_layer:]:
             layer.trainable = True
         self.model.compile(optimizer=self.optimizer_finetune, loss='categorical_crossentropy', metrics=self.metrics)
-        history_finetune = self.model.fit(train_data, epochs=epochs, initial_epoch=history_extract.epoch[-1],
-                                      validation_data=validation_data)
+        history_finetune = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs, initial_epoch=history_extract.epoch[-1],
+                                      validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
+                                      verbose=verbose, class_weight=class_weight)
 
     def evaluate(self, test_data, verbose=1):
         return self.model.evaluate(test_data, verbose=verbose)
