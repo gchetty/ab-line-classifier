@@ -3,7 +3,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Activation, GlobalAveragePooling2D, Conv2D, MaxPool2D, \
     BatchNormalization, ZeroPadding2D
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.initializers import Constant
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
 from tensorflow.keras.applications.vgg16 import VGG16
@@ -36,6 +36,9 @@ def get_model(model_name):
     elif model_name == 'custom_resnetv2':
         model_def = custom_resnetv2
         preprocessing_function = resnetv2_preprocess
+    elif model_name == 'cutoffvgg16':
+        model_def = CutoffVGG16
+        preprocessing_function = vgg16_preprocess
     else:
         model_def = cnn0
         preprocessing_function = mobilenetv2_preprocess
@@ -339,6 +342,7 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     '''
 
     # Set hyperparameters
+    print(input_shape)
     nodes_dense0 = model_config['NODES_DENSE0']
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
@@ -411,3 +415,61 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics, run_eagerly=True)
     return model
+
+
+class CutoffVGG16:
+
+    def __init__(self, model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+        self.lr_extract = model_config['LR_EXTRACT']
+        self.lr_finetune = model_config['LR_FINETUNE']
+        self.dropout = model_config['DROPOUT']
+        self.cutoff_layer = model_config['CUTOFF_LAYER']
+        self.finetune_layer = model_config['FINETUNE_LAYER']
+        self.extract_epochs = model_config['EXTRACT_EPOCHS']
+        self.optimizer_extract = Adam(learning_rate=self.lr_extract)
+        self.optimizer_finetune = RMSprop(learning_rate=self.lr_finetune)
+        self.output_bias = output_bias
+        self.n_classes = n_classes
+        self.input_shape = input_shape
+        self.metrics = metrics
+        self.mixed_precision = mixed_precision
+        self.model = self.define_model()
+
+    def define_model(self):
+        X_input = Input(shape=self.input_shape, name='input')
+        vgg16 = VGG16(input_shape=self.input_shape, include_top=False, weights='imagenet')
+        self.vgg16_layers = vgg16.layers[1:self.cutoff_layer]
+        X = X_input
+        for layer in self.vgg16_layers:
+            X = layer(X)
+        X = GlobalAveragePooling2D(name='global_avgpool')(X)
+        X = Dropout(self.dropout)(X)
+        Y = Dense(self.n_classes, activation='softmax', name='output')(X)
+        model = Model(inputs=X_input, outputs=Y)
+        model.summary()
+        return model
+
+    def fit(self, train_data, steps_per_epoch=None, epochs=1, validation_data=None, validation_steps=None,
+            callbacks=None, verbose=1, class_weight=None):
+        for layer in self.vgg16_layers:
+            layer.trainable = False
+        self.model.compile(optimizer=self.optimizer_extract, loss='categorical_crossentropy', metrics=self.metrics)
+        history_extract = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=self.extract_epochs,
+                            validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
+                            verbose=verbose, class_weight=class_weight)
+        for layer in self.vgg16_layers[self.finetune_layer:]:
+            layer.trainable = True
+        self.model.compile(optimizer=self.optimizer_finetune, loss='categorical_crossentropy', metrics=self.metrics)
+        history_finetune = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs, initial_epoch=history_extract.epoch[-1],
+                                      validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
+                                      verbose=verbose, class_weight=class_weight)
+
+    def evaluate(self, test_data, verbose=1):
+        return self.model.evaluate(test_data, verbose=verbose)
+
+    def predict(self, test_data, verbose=1):
+        return self.model.predict(test_data, verbose=verbose)
+
+    @property
+    def metrics_names(self):
+        return self.model.metrics_names

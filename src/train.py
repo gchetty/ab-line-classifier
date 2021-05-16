@@ -58,7 +58,7 @@ def define_callbacks(patience):
             gc.collect()
             k.clear_session()
 
-    callbacks = [early_stopping, reduce_lr, ClearMemory()]
+    callbacks = [early_stopping, reduce_lr]
 
     return callbacks
 
@@ -223,7 +223,10 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
     # Save the model's weights
     if save_weights:
         model_path = cfg['PATHS']['MODEL_WEIGHTS'] + 'model' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.h5'
-        save_model(model, model_path)  # Save the model's weights
+        if cfg['TRAIN']['MODEL_DEF'] == 'cutoffvgg16':
+            save_model(model.model, model_path)
+        else:
+            save_model(model, model_path)  # Save the model's weights
 
     # Run the model on the test set and print the resulting performance metrics.
     test_results = model.evaluate(test_generator, verbose=1)
