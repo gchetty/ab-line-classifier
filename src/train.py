@@ -58,7 +58,7 @@ def define_callbacks(patience):
             gc.collect()
             k.clear_session()
 
-    callbacks = [early_stopping, reduce_lr, ClearMemory()]
+    callbacks = [early_stopping, reduce_lr]
 
     return callbacks
 
