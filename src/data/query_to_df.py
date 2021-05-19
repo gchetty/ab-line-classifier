@@ -18,10 +18,14 @@ def create_ABline_dataframe(database_query):
     # Remove all muggle clips
     df = df[df.frame_homogeneity.isnull()]
 
-    df = df[df.a_or_b_lines != 'non_a,_non_b']
+    # Remove Non-A/Non-B line clips
+    df = df[df.a_or_b_lines != 'non_a_non_b']
+
+    # Removes clips with unlabelled parenchymal findings
+    df = df[df.a_or_b_lines.notnull()]
 
     # Create filename
-    df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_" + df["VID_id"]
+    df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_" + df["vid_id"]
 
     # Create column of class category to each clip. 
     # Modifiable for binary or multi-class labelling
@@ -29,12 +33,13 @@ def create_ABline_dataframe(database_query):
                            (1 if row.a_or_b_lines == 'b_lines_<_3' else
                             (1 if row.a_or_b_lines == 'b_lines-_moderate_(<50%_pleural_line)' else
                              (1 if row.a_or_b_lines == 'b_lines-_severe_(>50%_pleural_line)' else
-                               2 if row.a_or_b_lines == 'non_a,_non_b' else
+                               2 if row.a_or_b_lines == 'non_a_non_b' else
                                 -1))), axis=1)
 
+    # Relabel all b-line severities as a single class for A- vs. B-line classifier
     df['a_or_b_lines'] = df['a_or_b_lines'].replace({'b_lines_<_3': 'b_lines', 'b_lines-_moderate_(<50%_pleural_line)': 'b_lines', 'b_lines-_severe_(>50%_pleural_line)': 'b_lines'})
 
-    df['Path'] = df.apply(lambda row: '/home/derekwu/git repos/ab-line-classifer/data/masked_clips/' + row.filename, axis=1)
+    df['Path'] = df.apply(lambda row: cfg['PATHS']['MASKED_CLIPS'] + row.filename, axis=1)
 
     df['s3_path'] = df.apply(lambda row: row.s3_path, axis=1)
     
