@@ -312,8 +312,7 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
     conv_layer = Conv2D(num_filters,
                         kernel_size=kernel_size,
                         strides=stride,
-                        padding='same',
-                        kernel_regularizer=l2(l2_lambda))
+                        padding='same')
     # X = input
     if conv_first:
         X = conv_layer(X)
