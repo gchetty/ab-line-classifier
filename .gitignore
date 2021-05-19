@@ -10,7 +10,6 @@ results/
 img/heatmaps
 !img/heatmaps/.gitkeep
 
-
 # PYTHON ***************************************************************************
 # Byte-compiled / optimized / DLL files
 __pycache__/
