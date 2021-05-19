@@ -32,7 +32,7 @@ class GradCAMExplainer:
         # Get name of final convolutional layer
         layer_name = ''
         for layer in self.model.layers:
-            if any('Conv2D' in l for l in layer._keras_api_names):
+            if any('Conv' in l for l in layer._keras_api_names):
                 layer_name = layer.name
         self.last_conv_layer = layer_name
         self.hm_intensity = 0.5
