@@ -3,7 +3,7 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'B:\\Datasets\\ab-frames' #'D:\\Documents\\Data\\ab-frames '
+  FRAMES: 'data/frames/' # 'B:\\Datasets\\ab-frames'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
@@ -17,18 +17,18 @@ PATHS:
   EXPERIMENTS: './results/experiments'
 
 DATA:
-  IMG_DIM: [128, 128]
+  IMG_DIM: [112, 112]  #[128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'cutoffvgg16'                      # One of {'vgg1l6', 'mobilenetv2', 'xception', 'efficientnetb7', 'cutoffmobilenetv2'}
+  MODEL_DEF: 'custom_resnetv2'             # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 256
-  EPOCHS: 15
-  PATIENCE: 15
+  BATCH_SIZE: 64    #256
+  EPOCHS: 200       #15
+  PATIENCE: 7       #15
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -89,10 +89,10 @@ HPARAMS:
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
   CUSTOM_RESNETV2:
-    LR: 0.001
+    LR: 0.00003
     DROPOUT: 0.35
-    L2_LAMBDA: 0.0001
-    NODES_DENSE0: 64
+    L2_LAMBDA: 0.001
+    NODES_DENSE0: 0
     KERNEL_SIZE: (3, 3)
     STRIDES: (1, 1)
     MAXPOOL_SIZE: (2, 2)

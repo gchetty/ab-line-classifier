@@ -297,7 +297,7 @@ def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, o
     return model
 
 # Skip Connector for custom ResNetV2
-def residual_block(X, num_filters: int, stride: int = 1, kernel_size: int = 3,
+def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_size: int = 3,
                    activation: str = 'relu', bn: bool = True, conv_first: bool = True):
     """
     :param X: Tensor layer from previous layer
@@ -308,11 +308,14 @@ def residual_block(X, num_filters: int, stride: int = 1, kernel_size: int = 3,
     :param bn: bool, default True, to use Batch Normalization
     :param conv_first: bool, default True, conv-bn-activation (True) or bn-activation-conv (False)
     """
+
+    dropout = model_config['DROPOUT']
+    l2_lambda = model_config['L2_LAMBDA']
+
     conv_layer = Conv2D(num_filters,
                         kernel_size=kernel_size,
                         strides=stride,
-                        padding='same',
-                        kernel_regularizer=l2(1e-4))
+                        padding='same')
     # X = input
     if conv_first:
         X = conv_layer(X)
@@ -320,7 +323,7 @@ def residual_block(X, num_filters: int, stride: int = 1, kernel_size: int = 3,
             X = BatchNormalization()(X)
         if activation is not None:
             X = Activation(activation)(X)
-            X = Dropout(0.2)(X)
+            X = Dropout(dropout)(X)
     else:
         if bn:
             X = BatchNormalization()(X)
@@ -356,10 +359,10 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     X_input = Input(shape=input_shape)
 
     # ResNet V2 performs Conv2D on X before spiting into two path
-    X = residual_block(X=X_input, num_filters=num_filters_in, conv_first=True)
+    X = residual_block(model_config=model_config, X=X_input, num_filters=num_filters_in, conv_first=True)
 
     # Building stack of residual units
-    for stage in range(2):
+    for stage in range(3):
         for unit_res_block in range(num_res_block):
             activation = 'relu'
             bn = True
@@ -377,24 +380,28 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
                     stride = 2
 
             # bottleneck residual unit
-            y = residual_block(X,
+            y = residual_block(model_config=model_config,
+                               X=X,
                                num_filters=num_filters_in,
                                kernel_size=1,
                                stride=stride,
                                activation=activation,
                                bn=bn,
                                conv_first=False)
-            y = residual_block(y,
+            y = residual_block(model_config=model_config,
+                               X=y,
                                num_filters=num_filters_in,
                                conv_first=False)
-            y = residual_block(y,
+            y = residual_block(model_config=model_config,
+                               X=y,
                                num_filters=num_filters_out,
                                kernel_size=1,
                                conv_first=False)
             if unit_res_block == 0:
                 # linear projection residual shortcut connection to match
                 # changed dims
-                X = residual_block(X=X,
+                X = residual_block(model_config=model_config,
+                                   X=X,
                                    num_filters=num_filters_out,
                                    kernel_size=1,
                                    stride=stride,
