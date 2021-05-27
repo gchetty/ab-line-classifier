@@ -3,7 +3,7 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'data/frames/' # 'B:\\Datasets\\ab-frames'
+  FRAMES: 'B:\\Datasets\\ab-frames3'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
@@ -14,21 +14,22 @@ PATHS:
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
-  EXPERIMENTS: './results/experiments'
+  EXPERIMENTS: './results/experiments/'
+  EXPERIMENT_VISUALIZATIONS: './img/experiments/'
 
 DATA:
-  IMG_DIM: [112, 112]  #[128, 128]
+  IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'custom_resnetv2'             # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7'}
+  MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 64    #256
-  EPOCHS: 200       #15
-  PATIENCE: 7       #15
+  BATCH_SIZE: 256
+  EPOCHS: 15
+  PATIENCE: 15
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -42,7 +43,7 @@ TRAIN:
     ROTATION_RANGE: 45
     BRIGHTNESS_RANGE: [0.7, 1.3]
   HPARAM_SEARCH:
-    N_EVALS: 500
+    N_EVALS: 10
     HPARAM_OBJECTIVE: 'auc'
 
 HPARAMS:
@@ -82,27 +83,22 @@ HPARAMS:
     DROPOUT: 0.35
     L2_LAMBDA: 0.0001
     NODES_DENSE0: 64
-    KERNEL_SIZE: (3, 3)
-    STRIDES: (1, 1)
-    MAXPOOL_SIZE: (2, 2)
+    KERNEL_SIZE: 3
+    STRIDES: 1
+    MAXPOOL_SIZE: 2
     BLOCKS: 4
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
   CUSTOM_RESNETV2:
     LR: 0.00003
     DROPOUT: 0.35
-    L2_LAMBDA: 0.001
-    NODES_DENSE0: 0
-    KERNEL_SIZE: (3, 3)
-    STRIDES: (1, 1)
-    MAXPOOL_SIZE: (2, 2)
+    STRIDES: 1
     BLOCKS: 1
     INIT_FILTERS: 32
   CUTOFFVGG16:
     LR_EXTRACT: 0.0001
     LR_FINETUNE: 0.00001
     DROPOUT: 0.35
-    NODES_DENSE0: 32
     CUTOFF_LAYER: 10
     FINETUNE_LAYER: 7
     EXTRACT_EPOCHS: 10
@@ -115,3 +111,29 @@ HPARAM_SEARCH:
     DROPOUT:
       TYPE: 'float_uniform'
       RANGE: [0.0, 0.5]
+  CUTOFFVGG16:
+    LR_EXTRACT:
+      TYPE: 'float_log'
+      RANGE: [0.00001, 0.001]
+    LR_FINETUNE:
+      TYPE: 'float_log'
+      RANGE: [0.000001, 0.00001]
+    DROPOUT:
+      TYPE: 'float_uniform'
+      RANGE: [0.0, 0.5]
+    EXTRACT_EPOCHS:
+      TYPE: 'int_uniform'
+      RANGE: [2,4]
+  CUSTOM_RESNETV2:
+    LR:
+      TYPE: 'float_log'
+      RANGE: [ 0.00001, 0.0001 ]
+    DROPOUT:
+      TYPE: 'float_uniform'
+      RANGE: [ 0.0, 0.5 ]
+    BLOCKS:
+      TYPE: 'int_uniform'
+      RANGE: [1, 3]
+    INIT_FILTERS:
+      TYPE: 'set'
+      RANGE: [32, 64]

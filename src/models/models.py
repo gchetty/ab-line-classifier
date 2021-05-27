@@ -258,9 +258,9 @@ def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, o
     init_filters = model_config['INIT_FILTERS']
     filter_exp_base = model_config['FILTER_EXP_BASE']
     n_blocks = model_config['BLOCKS']
-    kernel_size = eval(model_config['KERNEL_SIZE'])
-    max_pool_size = eval(model_config['MAXPOOL_SIZE'])
-    strides = eval(model_config['STRIDES'])
+    kernel_size = (model_config['KERNEL_SIZE'], model_config['KERNEL_SIZE'])
+    max_pool_size = (model_config['MAXPOOL_SIZE'], model_config['MAXPOOL_SIZE'])
+    strides = (model_config['STRIDES'], model_config['STRIDES'])
     pad = kernel_size[0] // 2
     print("MODEL CONFIG: ", model_config)
     if mixed_precision:
@@ -310,7 +310,6 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
     """
 
     dropout = model_config['DROPOUT']
-    l2_lambda = model_config['L2_LAMBDA']
 
     conv_layer = Conv2D(num_filters,
                         kernel_size=kernel_size,
@@ -346,13 +345,11 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
 
     # Set hyperparameters
     print(input_shape)
-    nodes_dense0 = model_config['NODES_DENSE0']
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
-    l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
     num_filters_in = model_config['INIT_FILTERS']
-    stride = eval(model_config['STRIDES'])
+    stride = (model_config['STRIDES'], model_config['STRIDES'])
     num_res_block = model_config['BLOCKS']
     print("MODEL CONFIG: ", model_config)
 

@@ -279,12 +279,12 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
         frame_df = pd.read_csv(cfg['PATHS']['PREPROCESSED_DATA'])
 
     metrics = ['accuracy', 'auc', 'f1score']
-    metrics += ['precision_' + c for c in cfg['TRAIN']['CLASSES']]
-    metrics += ['recall_' + c for c in cfg['TRAIN']['CLASSES']]
+    metrics += ['precision_' + c for c in cfg['DATA']['CLASSES']]
+    metrics += ['recall_' + c for c in cfg['DATA']['CLASSES']]
     metrics_df = pd.DataFrame(np.zeros((n_folds + 2, len(metrics) + 1)), columns=['Fold'] + metrics)
     metrics_df['Fold'] = list(range(n_folds)) + ['mean', 'std']
 
-    model_name = cfg['TRAIN']['MODEL'].upper()
+    model_name = cfg['TRAIN']['MODEL_DEF'].lower()
     model_def, preprocessing_fn = get_model(model_name)
     hparams = cfg['HPARAMS'][model_name] if hparams is None else hparams
 
@@ -299,6 +299,8 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
 
     cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
     partition_path = os.path.join(cfg['PATHS']['PARTITIONS'], 'kfold' + cur_date)
+    if not os.path.exists(partition_path):
+        os.makedirs(partition_path)
 
     # Train a model n_folds times with different folds
     cur_fold = 0
@@ -318,8 +320,11 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
         test_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_test_set.csv'))
 
         # Train the model and evaluate performance on test set
+        log_dir_fold = log_dir
+        if write_logs:
+            log_dir_fold = log_dir + 'fold' + str(cur_fold)
         model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
-                                             save_weights=save_weights, log_dir=log_dir + 'fold' + str(cur_fold))
+                                             save_weights=save_weights, log_dir=log_dir_fold)
         for metric in test_metrics:
             if metric in metrics_df.columns:
                 metrics_df[metric][row_idx] = test_metrics[metric]
@@ -344,8 +349,8 @@ def bayesian_hparam_optimization():
     :return: Dict of hyperparameters deemed optimal
     '''
 
-    frame_df = pd.read_csv(cfg['PATHS']['PREPROCESSED_DATA'])
-    model_name = cfg['TRAIN']['MODEL'].upper()
+    frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
+    model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     objective_metric = cfg['TRAIN']['HPARAM_SEARCH']['HPARAM_OBJECTIVE']
     results = {'Trial': [], objective_metric: []}
     dimensions = []
@@ -371,36 +376,42 @@ def bayesian_hparam_optimization():
             default_params.append(cfg['HPARAMS'][model_name][hparam_name])
             hparam_names.append(hparam_name)
             results[hparam_name] = []
+    print(hparam_names)
+
 
     def objective(vals):
         hparams = dict(zip(hparam_names, vals))
+        for hparam in cfg['HPARAMS'][model_name]:
+            if hparam not in hparams:
+                hparams[hparam] = cfg['HPARAMS'][model_name][hparam]  # Add hyperparameters being held constant
         print('HPARAM VALUES: ', hparams)
-        scores = cross_validation(frame_df=frame_df, metrics=[objective_metric], model_name=model_name, hparams=hparams)[objective_metric]
-        score = scores[scores.shape[0] - 2]     # Get the mean value for the error metric from the cross validation
-        #test_metrics, _ = train_single(cfg, hparams=hparams, save_model=False, write_logs=False, save_metrics=False)
-        #score = test_metrics['auc']
+        #scores = cross_validation(frame_df=frame_df, hparams=hparams, write_logs=False, save_weights=False)[objective_metric]
+        #score = scores[scores.shape[0] - 2]     # Get the mean value for the error metric from the cross validation
+        test_metrics, _ = train_single(hparams=hparams, save_weights=False, write_logs=False)
+        score = 1.0 - test_metrics['auc']
         return score   # We aim to minimize error
     search_results = gp_minimize(func=objective, dimensions=dimensions, acq_func='EI',
                                  n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], verbose=True)
     print(search_results)
-    plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=True)
+    #plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=True)
 
     # Create table to detail results
     trial_idx = 0
     for t in search_results.x_iters:
         results['Trial'].append(str(trial_idx))
-        results[objective_metric].append(search_results.func_vals[trial_idx])
+        results[objective_metric].append(1.0 - search_results.func_vals[trial_idx])
         for i in range(len(hparam_names)):
             results[hparam_names[i]].append(t[i])
         trial_idx += 1
     results['Trial'].append('Best')
-    results[objective_metric].append(search_results.fun)
+    results[objective_metric].append(1.0 - search_results.fun)
     for i in range(len(hparam_names)):
         results[hparam_names[i]].append(search_results.x[i])
     results_df = pd.DataFrame(results)
     results_path = cfg['PATHS']['EXPERIMENTS'] + 'hparam_search_' + model_name + \
                    datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.csv'
     results_df.to_csv(results_path, index_label=False, index=False)
+    plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=True)
     return search_results
 
 
