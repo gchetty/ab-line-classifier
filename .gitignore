@@ -7,8 +7,9 @@ results/
 !results/logs/.gitkeep
 !results/models/.gitkeep
 !results/experiments/.gitkeep
-img/heatmaps
+img/
 !img/heatmaps/.gitkeep
+!img/experiments/.gitkeep
 
 # PYTHON ***************************************************************************
 # Byte-compiled / optimized / DLL files
@@ -119,6 +120,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv2/
 ENV/
 env.bak/
 venv.bak/
