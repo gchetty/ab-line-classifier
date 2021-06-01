@@ -1,7 +1,7 @@
 import tensorflow as tf 
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Dropout, Input, Activation, GlobalAveragePooling2D, Conv2D, MaxPool2D, \
-    BatchNormalization, ZeroPadding2D
+    BatchNormalization, ZeroPadding2D, SpatialDropout2D
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.initializers import Constant
@@ -309,8 +309,6 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
     :param conv_first: bool, default True, conv-bn-activation (True) or bn-activation-conv (False)
     """
 
-    dropout = model_config['DROPOUT']
-
     conv_layer = Conv2D(num_filters,
                         kernel_size=kernel_size,
                         strides=stride,
@@ -322,7 +320,7 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
             X = BatchNormalization()(X)
         if activation is not None:
             X = Activation(activation)(X)
-            X = Dropout(dropout)(X)
+
     else:
         if bn:
             X = BatchNormalization()(X)
@@ -346,7 +344,7 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     # Set hyperparameters
     print(input_shape)
     lr = model_config['LR']
-    dropout = model_config['DROPOUT']
+    dropout1 = model_config['DROPOUT1']
     optimizer = Adam(learning_rate=lr)
     num_filters_in = model_config['INIT_FILTERS']
     stride = (model_config['STRIDES'], model_config['STRIDES'])
@@ -408,8 +406,8 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
         num_filters_in = num_filters_out
 
     # Model head
+    X = SpatialDropout2D(dropout1)(X)
     X = GlobalAveragePooling2D(name='global_avgpool')(X)
-    X = Dropout(dropout)(X)
     #X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
               #name='fc0')(X)
     Y = Dense(n_classes, activation='softmax', dtype='float32', name='output')(X)
