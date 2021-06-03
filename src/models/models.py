@@ -412,7 +412,7 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     X = GlobalAveragePooling2D(name='global_avgpool')(X)
     #X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
               #name='fc0')(X)
-    Y = Dense(n_classes, activation='softmax', dtype='float32', name='output')(X)
+    Y = Dense(n_classes, activation='softmax', dtype='float32', name='output', bias_initializer=output_bias)(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)

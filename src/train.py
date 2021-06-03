@@ -7,6 +7,7 @@ import numpy as np
 from math import ceil
 import sys
 import tensorflow as tf
+from tensorflow.keras.initializers import Constant
 from sklearn.model_selection import train_test_split, KFold
 from skopt import gp_minimize
 from skopt.space import Real, Categorical, Integer
@@ -201,7 +202,8 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
 
     # Compute output bias
     histogram = np.bincount(train_df['Class'].astype(int))
-    output_bias = np.log([histogram[i] / (np.sum(histogram) - histogram[i]) for i in range(histogram.shape[0])])
+    output_bias = Constant(np.log([histogram[i] / (np.sum(histogram) - histogram[i])
+                                   for i in range(histogram.shape[0])]))
 
     # Define the model
     model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
