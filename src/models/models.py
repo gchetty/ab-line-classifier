@@ -308,6 +308,7 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
     :param bn: bool, default True, to use Batch Normalization
     :param conv_first: bool, default True, conv-bn-activation (True) or bn-activation-conv (False)
     """
+    dropout0 = model_config['DROPOUT0']
 
     conv_layer = Conv2D(num_filters,
                         kernel_size=kernel_size,
@@ -320,6 +321,7 @@ def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_si
             X = BatchNormalization()(X)
         if activation is not None:
             X = Activation(activation)(X)
+            X = SpatialDropout2D(dropout0)(X)
 
     else:
         if bn:

@@ -274,9 +274,11 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     :return DataFrame of metrics
     '''
 
+    n_classes = len(cfg['DATA']['CLASSES'])
+
     n_folds = cfg['TRAIN']['N_FOLDS']
     if frame_df is None:
-        frame_df = pd.read_csv(cfg['PATHS']['PREPROCESSED_DATA'])
+        frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
 
     metrics = ['accuracy', 'auc', 'f1score']
     metrics += ['precision_' + c for c in cfg['DATA']['CLASSES']]
@@ -286,7 +288,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
 
     model_name = cfg['TRAIN']['MODEL_DEF'].lower()
     model_def, preprocessing_fn = get_model(model_name)
-    hparams = cfg['HPARAMS'][model_name] if hparams is None else hparams
+    hparams = cfg['HPARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()] if hparams is None else hparams
 
     if write_logs:
         log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -325,6 +327,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
             log_dir_fold = log_dir + 'fold' + str(cur_fold)
         model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
                                              save_weights=save_weights, log_dir=log_dir_fold)
+
+        metrics_df['f1score'] = metrics_df['f1score'].astype(object)
+
         for metric in test_metrics:
             if metric in metrics_df.columns:
                 metrics_df[metric][row_idx] = test_metrics[metric]
@@ -334,12 +339,17 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     # Record mean and standard deviation of test set results
     for metric in metrics:
         metrics_df[metric][n_folds] = metrics_df[metric][0:-2].mean()
-        metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
+
+        if metric == 'f1score':
+            f1scores = np.array([x for x in metrics_df['f1score']]).tolist()
+            metrics_df[metric][n_folds + 1] = np.std(f1scores)
+        else:
+            metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
 
     # Save results
     file_path = cfg['PATHS']['EXPERIMENTS'] + 'cross_val_' + model_name + \
                 datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.csv'
-    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
+    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False, sep=',')
     return metrics_df
 
 

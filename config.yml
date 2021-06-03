@@ -1,6 +1,6 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patient.csv'
-  FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
+  FRAME_TABLE: 'data/frames-mini.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
   FRAMES: 'data/frames/'
@@ -25,15 +25,15 @@ DATA:
 
 TRAIN:
   MODEL_DEF: 'custom_resnetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
-  EXPERIMENT_TYPE: 'hparam_search'               # One of {'single_train', 'cross_validation', 'hparam_search'}
+  EXPERIMENT_TYPE: 'cross_validation'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 32
-  EPOCHS: 200
+  BATCH_SIZE: 128
+  EPOCHS: 5
   PATIENCE: 8
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
-  N_FOLDS: 10
+  N_FOLDS: 5
   DATA_AUG:
     ZOOM_RANGE: 0.1
     HORIZONTAL_FLIP: true
@@ -90,12 +90,12 @@ HPARAMS:
     INIT_FILTERS: 32
     FILTER_EXP_BASE: 2
   CUSTOM_RESNETV2:
-    LR: 0.000046
-    DROPOUT0: 0.2
-    DROPOUT1: 0.05
+    LR: 0.0006
+    DROPOUT0: 0.45
+    DROPOUT1: 0.40
     STRIDES: 1
-    BLOCKS: 2
-    INIT_FILTERS: 32
+    BLOCKS: 1
+    INIT_FILTERS: 16
   CUTOFFVGG16:
     LR_EXTRACT: 0.0001
     LR_FINETUNE: 0.00001
