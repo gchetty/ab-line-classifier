@@ -448,7 +448,7 @@ class CutoffVGG16:
             X = layer(X)
         X = GlobalAveragePooling2D(name='global_avgpool')(X)
         X = Dropout(self.dropout)(X)
-        Y = Dense(self.n_classes, activation='softmax', name='output')(X)
+        Y = Dense(self.n_classes, activation='softmax', bias_initializer=self.output_bias, name='output')(X)
         model = Model(inputs=X_input, outputs=Y)
         model.summary()
         return model
