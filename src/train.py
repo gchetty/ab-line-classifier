@@ -15,6 +15,7 @@ from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.models import save_model
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.initializers import Constant
 from src.models.models import *
 from src.visualization.visualization import *
 import gc
@@ -58,7 +59,7 @@ def define_callbacks(patience):
             gc.collect()
             k.clear_session()
 
-    callbacks = [early_stopping, reduce_lr]
+    callbacks = [early_stopping, reduce_lr, ClearMemory()]
 
     return callbacks
 
@@ -201,7 +202,8 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
 
     # Compute output bias
     histogram = np.bincount(train_df['Class'].astype(int))
-    output_bias = np.log([histogram[i] / (np.sum(histogram) - histogram[i]) for i in range(histogram.shape[0])])
+    output_bias = Constant(np.log([histogram[i] / (np.sum(histogram) - histogram[i])
+                                      for i in range(histogram.shape[0])]))
 
     # Define the model
     model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
@@ -276,9 +278,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
 
     n_folds = cfg['TRAIN']['N_FOLDS']
     if frame_df is None:
-        frame_df = pd.read_csv(cfg['PATHS']['PREPROCESSED_DATA'])
+        frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
 
-    metrics = ['accuracy', 'auc', 'f1score']
+    metrics = ['accuracy', 'auc']
     metrics += ['precision_' + c for c in cfg['DATA']['CLASSES']]
     metrics += ['recall_' + c for c in cfg['DATA']['CLASSES']]
     metrics_df = pd.DataFrame(np.zeros((n_folds + 2, len(metrics) + 1)), columns=['Fold'] + metrics)
@@ -286,7 +288,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
 
     model_name = cfg['TRAIN']['MODEL_DEF'].lower()
     model_def, preprocessing_fn = get_model(model_name)
-    hparams = cfg['HPARAMS'][model_name] if hparams is None else hparams
+    hparams = cfg['HPARAMS'][model_name.upper()] if hparams is None else hparams
 
     if write_logs:
         log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -389,11 +391,11 @@ def bayesian_hparam_optimization():
         #score = scores[scores.shape[0] - 2]     # Get the mean value for the error metric from the cross validation
         test_metrics, _ = train_single(hparams=hparams, save_weights=False, write_logs=False)
         score = 1.0 - test_metrics['auc']
+        tf.keras.backend.clear_session()
         return score   # We aim to minimize error
     search_results = gp_minimize(func=objective, dimensions=dimensions, acq_func='EI',
                                  n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], verbose=True)
     print(search_results)
-    #plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=True)
 
     # Create table to detail results
     trial_idx = 0
