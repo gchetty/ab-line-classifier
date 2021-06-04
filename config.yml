@@ -3,14 +3,14 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'data/frames/'
+  FRAMES: 'B:/Datasets/ab-frames'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set.csv'
   HEATMAPS: 'img/heatmaps'
   LOGS: 'results/logs/'
   IMAGES: 'results/figures/'
   MODEL_WEIGHTS: 'results/models/'
-  MODEL_TO_LOAD: 'results/models/model20210530-175851.h5'
+  MODEL_TO_LOAD: 'results/models/cvgg_ob1.h5'
   CLASS_NAME_MAP: 'data/serializations/output_class_indices.pkl'
   BATCH_PREDS: 'results/predictions/'
   METRICS: './results/metrics/'
@@ -21,11 +21,11 @@ DATA:
   IMG_DIM: [112, 112]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
-  CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
+  CLASSES: ['a-lines', 'b-lines']   # Classes for binary classification
 
 TRAIN:
-  MODEL_DEF: 'custom_resnetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
-  EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
+  MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
+  EXPERIMENT_TYPE: 'cross_validation'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
   BATCH_SIZE: 64
   EPOCHS: 200
@@ -97,12 +97,12 @@ HPARAMS:
     BLOCKS: 2
     INIT_FILTERS: 16
   CUTOFFVGG16:
-    LR_EXTRACT: 0.0001
-    LR_FINETUNE: 0.00001
-    DROPOUT: 0.35
+    LR_EXTRACT: 0.0003
+    LR_FINETUNE: 0.0000093
+    DROPOUT: 0.45
     CUTOFF_LAYER: 10
     FINETUNE_LAYER: 7
-    EXTRACT_EPOCHS: 10
+    EXTRACT_EPOCHS: 6
 
 HPARAM_SEARCH:
   MOBILENETV2:
@@ -124,7 +124,7 @@ HPARAM_SEARCH:
       RANGE: [0.0, 0.5]
     EXTRACT_EPOCHS:
       TYPE: 'int_uniform'
-      RANGE: [2,4]
+      RANGE: [2,10]
   CUSTOM_RESNETV2:
     LR:
       TYPE: 'float_log'
