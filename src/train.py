@@ -343,15 +343,16 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
         metrics_df[metric][n_folds] = metrics_df[metric][0:-2].mean()
 
         if metric == 'f1score':
-            f1scores = np.array([x for x in metrics_df['f1score']]).tolist()
-            metrics_df[metric][n_folds + 1] = np.std(f1scores)
+            f1_reshape = np.vstack(metrics_df[metric][0:-2])
+            metrics_df[metric][n_folds + 1] = f1_reshape.std(axis=0, ddof=1)
+
         else:
             metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
 
     # Save results
     file_path = cfg['PATHS']['EXPERIMENTS'] + 'cross_val_' + model_name + \
                 datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.csv'
-    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False, sep=',')
+    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
     return metrics_df
 
 
