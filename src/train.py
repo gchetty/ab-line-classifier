@@ -283,7 +283,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     if frame_df is None:
         frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
 
-    metrics = ['accuracy', 'auc']
+    metrics = ['accuracy', 'auc', 'f1score']
     metrics += ['precision_' + c for c in cfg['DATA']['CLASSES']]
     metrics += ['recall_' + c for c in cfg['DATA']['CLASSES']]
     metrics_df = pd.DataFrame(np.zeros((n_folds + 2, len(metrics) + 1)), columns=['Fold'] + metrics)
