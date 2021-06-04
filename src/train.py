@@ -7,6 +7,7 @@ import numpy as np
 from math import ceil
 import sys
 import tensorflow as tf
+from tensorflow.keras.initializers import Constant
 from sklearn.model_selection import train_test_split, KFold
 from skopt import gp_minimize
 from skopt.space import Real, Categorical, Integer
@@ -51,7 +52,7 @@ def define_callbacks(patience):
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
 
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=cfg['TRAIN']['PATIENCE'] // 2 + 1, verbose=1,
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=cfg['TRAIN']['PATIENCE'] // 2, verbose=1,
                                   min_lr=1e-8, min_delta=0.0001)
 
     class ClearMemory(Callback):
@@ -276,6 +277,8 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     :return DataFrame of metrics
     '''
 
+    n_classes = len(cfg['DATA']['CLASSES'])
+
     n_folds = cfg['TRAIN']['N_FOLDS']
     if frame_df is None:
         frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
@@ -327,6 +330,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
             log_dir_fold = log_dir + 'fold' + str(cur_fold)
         model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
                                              save_weights=save_weights, log_dir=log_dir_fold)
+
+        metrics_df['f1score'] = metrics_df['f1score'].astype(object)
+
         for metric in test_metrics:
             if metric in metrics_df.columns:
                 metrics_df[metric][row_idx] = test_metrics[metric]
@@ -336,7 +342,13 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     # Record mean and standard deviation of test set results
     for metric in metrics:
         metrics_df[metric][n_folds] = metrics_df[metric][0:-2].mean()
-        metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
+
+        if metric == 'f1score':
+            f1_reshape = np.vstack(metrics_df[metric][0:-2])
+            metrics_df[metric][n_folds + 1] = f1_reshape.std(axis=0, ddof=1)
+
+        else:
+            metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
 
     # Save results
     file_path = cfg['PATHS']['EXPERIMENTS'] + 'cross_val_' + model_name + \
