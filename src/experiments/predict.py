@@ -130,7 +130,7 @@ def compute_metrics_by_encounter(cfg, dataset_files_path, dataset_encounters_pat
     encounters_df = pd.read_csv(dataset_encounters_path)
 
     encounter_labels = encounters_df['class']
-    encounter_names = encounters_df['patient_id']
+    encounter_names = encounters_df['filename']
     encounter_pred_classes = []
     avg_pred_probs = np.zeros((encounters_df.shape[0], len(cfg['DATA']['CLASSES'])))
     for i in range(len(encounter_names)):
@@ -157,7 +157,7 @@ def compute_metrics_by_encounter(cfg, dataset_files_path, dataset_encounters_pat
 
     # Save predictions
     avg_pred_probs_df = pd.DataFrame(avg_pred_probs, columns=cfg['DATA']['CLASSES'])
-    avg_pred_probs_df.insert(0, 'patient_id', encounters_df['patient_id'])
+    avg_pred_probs_df.insert(0, 'filename', encounters_df['filename'])
     avg_pred_probs_df.insert(1, 'class', encounters_df['class'])
     avg_pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
