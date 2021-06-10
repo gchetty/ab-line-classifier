@@ -277,6 +277,12 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     :return DataFrame of metrics
     '''
 
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_virtual_device_configuration(gpu, [
+                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=12288)])
+
     n_classes = len(cfg['DATA']['CLASSES'])
 
     n_folds = cfg['TRAIN']['N_FOLDS']
@@ -338,6 +344,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
                 metrics_df[metric][row_idx] = test_metrics[metric]
         row_idx += 1
         cur_fold += 1
+        gc.collect()
+        tf.keras.backend.clear_session()
+        del model
 
     # Record mean and standard deviation of test set results
     for metric in metrics:
