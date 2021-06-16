@@ -5,7 +5,7 @@ PATHS:
   RAW_CLIPS: 'data/raw_clips/'
   FRAMES: 'B:/Datasets/ab-frames-cropped'
   PARTITIONS: 'data/partitions/'
-  TEST_DF: 'data/partitions/test_set.csv'
+  TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
   EXT_VAL_FRAME_TABLE: 'data/frames_mini.csv'
   EXT_VAL_FRAMES: 'data/frames_mini/'

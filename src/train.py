@@ -251,6 +251,12 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     :param write_logs: Flag indicating whether to write any training logs to disk
     :return: Dictionary of test set performance metrics
     '''
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_virtual_device_configuration(gpu, [
+                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10240)])
+
     train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'])
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
     if write_logs:
