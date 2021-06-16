@@ -1,11 +1,11 @@
 PATHS:
-  CLIPS_TABLE: 'data/clips_by_patient.csv'
-  FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
+  CLIPS_TABLE: 'data/clips_by_patient_cropped.csv'
+  FRAME_TABLE: 'data/frames_cropped.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'B:/Datasets/ab-frames'
+  FRAMES: 'B:/Datasets/ab-frames-cropped'
   PARTITIONS: 'data/partitions/'
-  TEST_DF: 'data/partitions/test_set.csv'
+  TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
   EXT_VAL_FRAME_TABLE: 'data/frames_mini.csv'
   EXT_VAL_FRAMES: 'data/frames_mini/'
@@ -21,7 +21,7 @@ PATHS:
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
 
 DATA:
-  IMG_DIM: [112, 112]
+  IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a-lines', 'b-lines']   # Classes for binary classification
@@ -30,9 +30,9 @@ TRAIN:
   MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'cross_validation'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
-  BATCH_SIZE: 64
-  EPOCHS: 200
-  PATIENCE: 10
+  BATCH_SIZE: 256
+  EPOCHS: 15
+  PATIENCE: 15
   METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
   NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
@@ -43,7 +43,7 @@ TRAIN:
     WIDTH_SHIFT_RANGE: 0.2
     HEIGHT_SHIFT_RANGE: 0.2
     SHEAR_RANGE: 10
-    ROTATION_RANGE: 40
+    ROTATION_RANGE: 45
     BRIGHTNESS_RANGE: [0.7, 1.3]
   HPARAM_SEARCH:
     N_EVALS: 10

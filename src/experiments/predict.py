@@ -64,7 +64,7 @@ def predict_set(model, preprocessing_func, predict_df):
     x_col = 'Frame Path'
     y_col = 'Class Name'
     class_mode = 'categorical'
-    generator = img_gen.flow_from_dataframe(dataframe=predict_df, directory=cfg['PATHS']['EXT_VAL_FRAMES'],
+    generator = img_gen.flow_from_dataframe(dataframe=predict_df, directory=cfg['PATHS']['FRAMES'],
                                             x_col=x_col, y_col=y_col, target_size=img_shape,
                                             batch_size=cfg['TRAIN']['BATCH_SIZE'],
                                             class_mode=class_mode, validate_filenames=True, shuffle=False)

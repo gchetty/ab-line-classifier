@@ -454,13 +454,13 @@ class CutoffVGG16:
             callbacks=None, verbose=1, class_weight=None):
         for layer in self.vgg16_layers:
             layer.trainable = False
-        self.model.compile(optimizer=self.optimizer_extract, loss='categorical_crossentropy', metrics=self.metrics)
+        self.model.compile(optimizer=self.optimizer_extract, loss='categorical_crossentropy', metrics=self.metrics, run_eagerly=True)
         history_extract = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=self.extract_epochs,
                             validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
                             verbose=verbose, class_weight=class_weight)
         for layer in self.vgg16_layers[self.finetune_layer:]:
             layer.trainable = True
-        self.model.compile(optimizer=self.optimizer_finetune, loss='categorical_crossentropy', metrics=self.metrics)
+        self.model.compile(optimizer=self.optimizer_finetune, loss='categorical_crossentropy', metrics=self.metrics, run_eagerly=True)
         history_finetune = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs, initial_epoch=history_extract.epoch[-1],
                                       validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
                                       verbose=verbose, class_weight=class_weight)
