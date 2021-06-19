@@ -113,52 +113,52 @@ def compute_metrics(cfg, labels, preds, probs):
     return metrics
 
 
-def compute_metrics_by_encounter(cfg, dataset_files_path, dataset_encounters_path):
+def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path):
     '''
-    For a particular dataset, use predictions for each filename to create predictions for whole encounters and save the
+    For a particular dataset, use predictions for each filename to create predictions for whole clips and save the
     resulting metrics.
     :param cfg: project config
-    :param dataset_files_path: Path to CSV of Dataframe linking filenames to labels
-    :param dataset_encounters_path: Path to CSV of Dataframe linking encounters to labels
+    :param frames_table_path: Path to CSV of Dataframe linking filenames to labels
+    :param clips_table_path: Path to CSV of Dataframe linking clips to labels
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     preprocessing_fn = get_preprocessing_function(model_type)
     model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
-    set_name = dataset_files_path.split('/')[-1].split('.')[0] + '_encounters'
+    set_name = frames_table_path.split('/')[-1].split('.')[0] + '_clips'
 
-    files_dataset = pd.read_csv(dataset_files_path)
-    encounters_df = pd.read_csv(dataset_encounters_path)
+    frames_df = pd.read_csv(frames_table_path)
+    clips_df = pd.read_csv(clips_table_path)
 
-    encounter_labels = encounters_df['class']
-    encounter_names = encounters_df['filename']
-    encounter_pred_classes = []
-    avg_pred_probs = np.zeros((encounters_df.shape[0], len(cfg['DATA']['CLASSES'])))
-    for i in range(len(encounter_names)):
+    clip_labels = clips_df['class']
+    clip_names = clips_df['filename']
+    clip_pred_classes = []
+    avg_pred_probs = np.zeros((clips_df.shape[0], len(cfg['DATA']['CLASSES'])))
+    for i in range(len(clip_names)):
 
-        # Get records from all files from this encounter
-        enc_name = encounter_names[i].split('/')[-1].split(' ')[0]
-        enc_files_df = files_dataset[files_dataset['Frame Path'].str.contains(enc_name)]
-        print("Making predictions for encounter " + enc_name)
+        # Get records from all files from this clip
+        clip_name = clip_names[i].split('/')[-1].split(' ')[0]
+        clip_files_df = frames_df[frames_df['Frame Path'].str.contains(clip_name)]
+        print("Making predictions for clip " + clip_name)
 
         # Make predictions for each image
-        pred_classes, pred_probs = predict_set(model, preprocessing_fn, enc_files_df)
+        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df)
 
-        # Compute average prediction probabilities for entire encounter
+        # Compute average prediction probabilities for entire clip
         avg_pred_prob = np.mean(pred_probs, axis=0)
         avg_pred_probs[i] = avg_pred_prob
 
         # Record predicted class
-        encounter_pred = np.argmax(avg_pred_prob)
-        encounter_pred_classes.append(encounter_pred)
+        clip_pred = np.argmax(avg_pred_prob)
+        clip_pred_classes.append(clip_pred)
 
-    metrics = compute_metrics(cfg, np.array(encounter_labels), np.array(encounter_pred_classes), avg_pred_probs)
+    metrics = compute_metrics(cfg, np.array(clip_labels), np.array(clip_pred_classes), avg_pred_probs)
     print(metrics)
-    doc = json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'encounters_' + set_name + '.json', 'w'))
+    doc = json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'clips_' + set_name + '.json', 'w'))
 
     # Save predictions
     avg_pred_probs_df = pd.DataFrame(avg_pred_probs, columns=cfg['DATA']['CLASSES'])
-    avg_pred_probs_df.insert(0, 'filename', encounters_df['filename'])
-    avg_pred_probs_df.insert(1, 'class', encounters_df['class'])
+    avg_pred_probs_df.insert(0, 'filename', clips_df['filename'])
+    avg_pred_probs_df.insert(1, 'class', clips_df['class'])
     avg_pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
     return
@@ -194,9 +194,41 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     return
 
 
+def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines):
+    '''
+    Varies the levels of thresholds for number of predicted frames with B-lines needed to classify a clip as
+    pathological. Computes metrics for each threshold value. Save a table and visualization of the results.
+    :param frame_preds_path:
+    '''
+
+    N_A_LINES = '# A-line'
+    N_B_LINES = '# B-line'
+    ACCURACY = 'Accuracy'
+    PRECISION_A_LINES = 'Precision (A-lines)'
+    PRECISION_B_LINES = 'Precision (B-lines)'
+    RECALL_A_LINES = 'Recall (A-lines)'
+    RECALL_B_LINES = 'Recall (B-lines)'
+
+    preds_df = pd.read_csv(frame_preds_path)
+    preds_df['Clip'] = preds_df["Frame Path"].str.rpartition("_")[0]
+    preds_df['Pred Class'] = preds_df['b_lines'].ge(preds_df['a_lines']).astype(int)
+
+    clips_df = preds_df.groupby('Clip').agg({'Class': 'first', 'Pred Class': 'sum'})
+
+    num_pred_lines_df = preds_df.groupby('Frame Path')
+
+    #num_pred_lines_df = pd.DataFrame(columns=['Clip', N_A_LINES, N_B_LINES])
+    #metrics_df = pd.DataFrame(columns=[ACCURACY, PRECISION_A_LINES, PRECISION_B_LINES, RECALL_A_LINES, RECALL_B_LINES])
+
+    #for i in range(min_b_lines, max_b_lines + 1):
+
+
+
+
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    dataset_path = cfg['PATHS']['EXT_VAL_FRAME_TABLE']
-    encounters_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
-    compute_metrics_by_encounter(cfg, dataset_path, encounters_path)
-    compute_metrics_by_frame(cfg, dataset_path)
+    # dataset_path = cfg['PATHS']['EXT_VAL_FRAME_TABLE']
+    # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
+    # compute_metrics_by_clip(cfg, dataset_path, clips_path)
+    # compute_metrics_by_frame(cfg, dataset_path)
+    b_line_threshold_curve('results/experiments/ext_frames_predictions20210617-164406_cropped_VGG16.csv', 0, 40)

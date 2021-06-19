@@ -1,6 +1,5 @@
 import yaml
 import os
-import datetime
 import cv2
 import numpy as np
 import pandas as pd
@@ -10,7 +9,7 @@ from tkinter import filedialog as fd
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Model
-from src.experiments.predict import predict_instance, predict_set
+from src.predict import predict_set
 from src.visualization.visualization import visualize_heatmap
 from src.models.models import get_model
 
