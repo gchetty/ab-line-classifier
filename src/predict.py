@@ -7,11 +7,6 @@ import pandas as pd
 from sklearn.metrics import *
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications.resnet_v2 import preprocess_input as resnet_preprocess
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobilenetv2_preprocess
-from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
-from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
-from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input as inceptionresnetv2_preprocess
 
 from src.visualization.visualization import *
 from src.models.models import get_model
@@ -20,25 +15,6 @@ cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
 for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
-
-def get_preprocessing_function(model_type):
-    '''
-    Get the preprocessing function according to the type of TensorFlow model
-    :param model_type: The pretrained model
-    :return: A reference to the appropriate preprocessing function
-    '''
-    if model_type == 'custom_resnetv2':
-        return resnet_preprocess
-    elif model_type == 'vgg16':
-        return vgg16_preprocess
-    elif model_type == 'mobilenetv2':
-        return mobilenetv2_preprocess
-    elif model_type == 'inceptionresnetv2':
-        return inceptionresnetv2_preprocess
-    elif model_type == 'cutoffvgg16':
-        return xception_preprocess
-    else:
-        return None
 
 def predict_instance(x, model):
     '''
@@ -234,8 +210,8 @@ def b_line_threshold_metrics(frame_preds_path, min_b_lines, max_b_lines, documen
 
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    # dataset_path = 'data/partitions/test_set_final.csv'
+    dataset_path = 'data/partitions/test_set_final.csv'
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
-    # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_metrics('results/predictions/test_set_final_frames_predictions20210620-143046.csv', 1, 40, document=True)
+    compute_metrics_by_frame(cfg, dataset_path)
+    # b_line_threshold_metrics('results/predictions/test_set_final_frames_predictions20210620-143046.csv', 1, 40, document=True)
