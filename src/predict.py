@@ -80,7 +80,7 @@ def predict_set(model, preprocessing_func, predict_df):
     test_predictions = [cfg['DATA']['CLASSES'].index(c) for c in pred_classes]
     return test_predictions, p
 
-def compute_metrics(cfg, labels, preds, probs):
+def compute_metrics(cfg, labels, preds, probs=None):
     '''
     Given labels and predictions, compute some common performance metrics
     :param cfg: project config
@@ -102,14 +102,16 @@ def compute_metrics(cfg, labels, preds, probs):
     metrics['recall'] = {class_names[i]:recalls[i] for i in range(len(recalls))}
     metrics['f1'] = {class_names[i]:f1s[i] for i in range(len(f1s))}
     metrics['accuracy'] = accuracy_score(labels, preds)
-    metrics['macro_mean_auc'] = roc_auc_score(labels, probs[:,1], average='macro', multi_class='ovr')
-    metrics['weighted_mean_auc'] = roc_auc_score(labels, probs[:,1], average='weighted', multi_class='ovr')
 
-    # Calculate classwise AUCs
-    for class_name in class_names:
-        classwise_labels = (labels == class_names.index(class_name)).astype(int)
-        class_probs = probs[:,class_names.index(class_name)]
-        metrics[class_name + '_auc'] = roc_auc_score(classwise_labels, class_probs)
+    if probs is not None:
+        metrics['macro_mean_auc'] = roc_auc_score(labels, probs[:,1], average='macro', multi_class='ovr')
+        metrics['weighted_mean_auc'] = roc_auc_score(labels, probs[:,1], average='weighted', multi_class='ovr')
+
+        # Calculate classwise AUCs
+        for class_name in class_names:
+            classwise_labels = (labels == class_names.index(class_name)).astype(int)
+            class_probs = probs[:,class_names.index(class_name)]
+            metrics[class_name + '_auc'] = roc_auc_score(classwise_labels, class_probs)
     return metrics
 
 
@@ -194,11 +196,14 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     return
 
 
-def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines):
+def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines, document=False):
     '''
     Varies the levels of thresholds for number of predicted frames with B-lines needed to classify a clip as
     pathological. Computes metrics for each threshold value. Save a table and visualization of the results.
-    :param frame_preds_path:
+    :param frame_preds_path: Path to CSV file containing frame-wise predictions
+    :min_b_lines: minimum clip-wise B-line classification threshold
+    :max_b_lines: maximum clip-wise B-line classification threshold
+    :document: if set to True, generates a visualization and saves it as an image, along with a CSV
     '''
 
     N_A_LINES = '# A-line'
@@ -208,21 +213,30 @@ def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines):
     PRECISION_B_LINES = 'Precision (B-lines)'
     RECALL_A_LINES = 'Recall (A-lines)'
     RECALL_B_LINES = 'Recall (B-lines)'
+    B_LINE_THRESHOLD = 'B-line Threshold'
+    metrics_columns = [B_LINE_THRESHOLD, ACCURACY, PRECISION_A_LINES, PRECISION_B_LINES, RECALL_A_LINES, RECALL_B_LINES]
 
     preds_df = pd.read_csv(frame_preds_path)
     preds_df['Clip'] = preds_df["Frame Path"].str.rpartition("_")[0]
     preds_df['Pred Class'] = preds_df['b_lines'].ge(preds_df['a_lines']).astype(int)
 
-    clips_df = preds_df.groupby('Clip').agg({'Class': 'first', 'Pred Class': 'sum'})
+    clips_df = preds_df.groupby('Clip').agg({'Class': 'first', 'Pred Class': 'sum'}).rename(columns={'Pred Class': N_B_LINES})
+    metrics_df = pd.DataFrame()
 
-    num_pred_lines_df = preds_df.groupby('Frame Path')
+    for threshold in range(min_b_lines, max_b_lines + 1):
+        clips_df['Pred Class'] = clips_df[N_B_LINES].ge(threshold).astype(int)
+        metrics = compute_metrics(cfg, np.array(clips_df['Class']), np.array(clips_df['Pred Class']))
+        metrics_flattened = pd.json_normalize(metrics, sep='_')
+        metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
 
-    #num_pred_lines_df = pd.DataFrame(columns=['Clip', N_A_LINES, N_B_LINES])
-    #metrics_df = pd.DataFrame(columns=[ACCURACY, PRECISION_A_LINES, PRECISION_B_LINES, RECALL_A_LINES, RECALL_B_LINES])
+    metrics_df[B_LINE_THRESHOLD] = np.arange(min_b_lines, max_b_lines + 1)
+    metrics_df.set_index(B_LINE_THRESHOLD, inplace=True)
 
-    #for i in range(min_b_lines, max_b_lines + 1):
-
-
+    if document:
+        # TODO: generate and save plot
+        metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'b-line_thresholds_' +
+                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
+    return metrics_df
 
 
 if __name__ == '__main__':
@@ -231,4 +245,4 @@ if __name__ == '__main__':
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_curve('results/experiments/ext_frames_predictions20210617-164406_cropped_VGG16.csv', 0, 40)
+    b_line_threshold_curve('results/experiments/ext_frames_predictions20210617-164406_cropped_VGG16.csv', 1, 40)
