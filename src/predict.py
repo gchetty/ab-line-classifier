@@ -12,7 +12,9 @@ from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobil
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.inception_resnet_v2 import preprocess_input as inceptionresnetv2_preprocess
+
 from src.visualization.visualization import *
+from src.models.models import get_model
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -124,7 +126,7 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path):
     :param clips_table_path: Path to CSV of Dataframe linking clips to labels
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
-    preprocessing_fn = get_preprocessing_function(model_type)
+    _, preprocessing_fn = get_model(model_type)
     model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
     set_name = frames_table_path.split('/')[-1].split('.')[0] + '_clips'
 
@@ -173,7 +175,7 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     :param dataset_files_path: Path to CSV of Dataframe linking filenames to labels
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
-    preprocessing_fn = get_preprocessing_function(model_type)
+    _, preprocessing_fn = get_model(model_type)
     model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
     set_name = dataset_files_path.split('/')[-1].split('.')[0] + '_frames'
 
@@ -196,7 +198,7 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     return
 
 
-def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines, document=False):
+def b_line_threshold_metrics(frame_preds_path, min_b_lines, max_b_lines, document=False):
     '''
     Varies the levels of thresholds for number of predicted frames with B-lines needed to classify a clip as
     pathological. Computes metrics for each threshold value. Save a table and visualization of the results.
@@ -206,15 +208,8 @@ def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines, document=
     :document: if set to True, generates a visualization and saves it as an image, along with a CSV
     '''
 
-    N_A_LINES = '# A-line'
     N_B_LINES = '# B-line'
-    ACCURACY = 'Accuracy'
-    PRECISION_A_LINES = 'Precision (A-lines)'
-    PRECISION_B_LINES = 'Precision (B-lines)'
-    RECALL_A_LINES = 'Recall (A-lines)'
-    RECALL_B_LINES = 'Recall (B-lines)'
     B_LINE_THRESHOLD = 'B-line Threshold'
-    metrics_columns = [B_LINE_THRESHOLD, ACCURACY, PRECISION_A_LINES, PRECISION_B_LINES, RECALL_A_LINES, RECALL_B_LINES]
 
     preds_df = pd.read_csv(frame_preds_path)
     preds_df['Clip'] = preds_df["Frame Path"].str.rpartition("_")[0]
@@ -228,21 +223,19 @@ def b_line_threshold_curve(frame_preds_path, min_b_lines, max_b_lines, document=
         metrics = compute_metrics(cfg, np.array(clips_df['Class']), np.array(clips_df['Pred Class']))
         metrics_flattened = pd.json_normalize(metrics, sep='_')
         metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
-
-    metrics_df[B_LINE_THRESHOLD] = np.arange(min_b_lines, max_b_lines + 1)
-    metrics_df.set_index(B_LINE_THRESHOLD, inplace=True)
+    metrics_df.insert(0, B_LINE_THRESHOLD, np.arange(min_b_lines, max_b_lines + 1))
 
     if document:
-        # TODO: generate and save plot
+        plot_b_line_threshold_experiment(metrics_df)
         metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'b-line_thresholds_' +
-                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
+                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=False)
     return metrics_df
 
 
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    # dataset_path = cfg['PATHS']['EXT_VAL_FRAME_TABLE']
+    # dataset_path = 'data/partitions/test_set_final.csv'
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_curve('results/experiments/ext_frames_predictions20210617-164406_cropped_VGG16.csv', 1, 40)
+    b_line_threshold_metrics('results/predictions/test_set_final_frames_predictions20210620-143046.csv', 1, 40, document=True)
