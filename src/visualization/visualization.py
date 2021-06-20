@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix, roc_curve
 from skopt.plots import plot_objective
+from pandas.api.types import is_numeric_dtype
 
 mpl.rcParams['figure.figsize'] = (12, 8)
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
@@ -174,3 +175,31 @@ def plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=
     if save_fig:
         plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'Bayesian_opt_' + model_name + '_' +
                     datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
+
+
+def plot_b_line_threshold_experiment(metrics_df, metrics_to_plot=None):
+    '''
+    Visualizes the Plot classification metrics for clip predictions over various B-line count thresholds.
+    :param metrics_df: DataFrame containing classification metrics for different . The first column should be the
+                       various B-line thresholds and the rest are classification metrics
+    :param metrics_to_plot: List of metrics to include on the plot
+    '''
+
+    ax = plt.subplot()
+    plt.title('Classification Metrics for Clip Predictions vs. B-line Threshold')
+    ax.set_xlabel('B-line Clip Classification Threshold')
+    ax.set_ylim(0., 1.)
+
+    if metrics_to_plot is None:
+        metric_names = [m for m in metrics_df.columns if m != 'B-line Threshold' and is_numeric_dtype(metrics_df[m])]
+    else:
+        metric_names = metrics_to_plot
+
+    # Plot each metric as a separate series and place a legend
+    for metric_name in metric_names:
+        if is_numeric_dtype(metrics_df[metric_name]):
+            ax.plot(metrics_df['B-line Threshold'], metrics_df[metric_name])
+    ax.legend(metric_names, loc='lower right')
+
+    plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'b-line_thresholds_' +
+                datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
