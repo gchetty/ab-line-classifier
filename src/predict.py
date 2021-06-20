@@ -184,19 +184,23 @@ def b_line_threshold_metrics(frame_preds_path, min_b_lines, max_b_lines, documen
     :document: if set to True, generates a visualization and saves it as an image, along with a CSV
     '''
 
+    # Repeated column names
     N_B_LINES = '# B-line'
     B_LINE_THRESHOLD = 'B-line Threshold'
+    PRED_CLASS = 'Pred Class'
+    CLASS_NUM = 'Class'
+    CLIP = 'Clip'
 
     preds_df = pd.read_csv(frame_preds_path)
-    preds_df['Clip'] = preds_df["Frame Path"].str.rpartition("_")[0]
-    preds_df['Pred Class'] = preds_df['b_lines'].ge(preds_df['a_lines']).astype(int)
+    preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
+    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(preds_df['a_lines']).astype(int)
 
-    clips_df = preds_df.groupby('Clip').agg({'Class': 'first', 'Pred Class': 'sum'}).rename(columns={'Pred Class': N_B_LINES})
+    clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: 'sum'}).rename(columns={PRED_CLASS: N_B_LINES})
     metrics_df = pd.DataFrame()
 
     for threshold in range(min_b_lines, max_b_lines + 1):
-        clips_df['Pred Class'] = clips_df[N_B_LINES].ge(threshold).astype(int)
-        metrics = compute_metrics(cfg, np.array(clips_df['Class']), np.array(clips_df['Pred Class']))
+        clips_df[PRED_CLASS] = clips_df[N_B_LINES].ge(threshold).astype(int)
+        metrics = compute_metrics(cfg, np.array(clips_df[CLASS_NUM]), np.array(clips_df[PRED_CLASS]))
         metrics_flattened = pd.json_normalize(metrics, sep='_')
         metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
     metrics_df.insert(0, B_LINE_THRESHOLD, np.arange(min_b_lines, max_b_lines + 1))
