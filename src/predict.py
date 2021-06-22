@@ -16,15 +16,12 @@ cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
 
-def predict_instance(x, model):
-    '''
-    Runs model prediction on 1 or more input images.
-    :param x: Image(s) to predict
-    :param model: A Keras model
-    :return: A numpy array comprising a list of class probabilities for each prediction
-    '''
-    y = model.predict(x)  # Run prediction on the images
-    return y
+# Repeated column names
+N_B_LINES = '# B-line'
+B_LINE_THRESHOLD = 'B-line Threshold'
+PRED_CLASS = 'Pred Class'
+CLASS_NUM = 'Class'
+CLIP = 'Clip'
 
 
 def predict_set(model, preprocessing_func, predict_df):
@@ -174,28 +171,27 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     return
 
 
-def b_line_threshold_metrics(frame_preds_path, min_b_lines, max_b_lines, document=False):
+def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, contiguous=True, document=False):
     '''
     Varies the levels of thresholds for number of predicted frames with B-lines needed to classify a clip as
-    pathological. Computes metrics for each threshold value. Save a table and visualization of the results.
-    :param frame_preds_path: Path to CSV file containing frame-wise predictions
+    pathological. Computes metrics for each threshold value. Saves a table and visualization of the results.
+    :param frame_preds_path: Path to CSV file containing frame-wise predictions.
     :min_b_lines: minimum clip-wise B-line classification threshold
     :max_b_lines: maximum clip-wise B-line classification threshold
+    :contiguous: if set to True, uses the maximum contiguous B-line predictions as the clip prediction threshold;
+                 if set to False, uses the total B-line predictions as the clip prediction threshold.
     :document: if set to True, generates a visualization and saves it as an image, along with a CSV
     '''
 
-    # Repeated column names
-    N_B_LINES = '# B-line'
-    B_LINE_THRESHOLD = 'B-line Threshold'
-    PRED_CLASS = 'Pred Class'
-    CLASS_NUM = 'Class'
-    CLIP = 'Clip'
-
     preds_df = pd.read_csv(frame_preds_path)
     preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
-    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(preds_df['a_lines']).astype(int)
+    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(0.5).astype(int)
 
-    clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: 'sum'}).rename(columns={PRED_CLASS: N_B_LINES})
+    if contiguous:
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: max_contiguous_b_line_preds})
+    else:
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: 'sum'})
+    clips_df.rename(columns={PRED_CLASS: N_B_LINES}, inplace=True)
     metrics_df = pd.DataFrame()
 
     for threshold in range(min_b_lines, max_b_lines + 1):
@@ -212,10 +208,28 @@ def b_line_threshold_metrics(frame_preds_path, min_b_lines, max_b_lines, documen
     return metrics_df
 
 
+def max_contiguous_b_line_preds(pred_series):
+    '''
+    Given a series of class predictions, determine the maximum number of contiguous B-line predictions
+    :param pred_series: Pandas series of frame-wise integer predictions
+    :return: Maximum contiguous B-line predictions in the series
+    '''
+    pred_arr = np.asarray(pred_series)
+    max_contiguous = cur_contiguous = 0
+    for i in range(pred_arr.shape[0]):
+        if pred_arr[i] == 1:
+            cur_contiguous += 1
+        else:
+            cur_contiguous = 0
+        if cur_contiguous > max_contiguous:
+            max_contiguous = cur_contiguous
+    return max_contiguous
+
+
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
     dataset_path = 'data/partitions/test_set_final.csv'
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
-    compute_metrics_by_frame(cfg, dataset_path)
-    # b_line_threshold_metrics('results/predictions/test_set_final_frames_predictions20210620-143046.csv', 1, 40, document=True)
+    # compute_metrics_by_frame(cfg, dataset_path)
+    b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 1, 40, contiguous=True, document=True)
