@@ -68,14 +68,15 @@ def compute_metrics(cfg, labels, preds, probs=None):
     metrics = {}
     class_names = cfg['DATA']['CLASSES']
 
-    precisions = precision_score(labels, preds, average=None)
+    precision = precision_score(labels, preds, average='binary')
     recalls = recall_score(labels, preds, average=None)
-    f1s = f1_score(labels, preds, average=None)
+    f1 = f1_score(labels, preds, average='binary')
 
     metrics['confusion_matrix'] = confusion_matrix(labels, preds).tolist()
-    metrics['precision'] = {class_names[i]:precisions[i] for i in range(len(precisions))}
-    metrics['recall'] = {class_names[i]:recalls[i] for i in range(len(recalls))}
-    metrics['f1'] = {class_names[i]:f1s[i] for i in range(len(f1s))}
+    metrics['precision'] = precision
+    metrics['recall'] = recalls[1]          # Recall of the positive class (i.e. sensitivity)
+    metrics['specificity'] = recalls[0]     # Specificity is recall of the negative class
+    metrics['f1'] = f1
     metrics['accuracy'] = accuracy_score(labels, preds)
 
     if probs is not None:
@@ -232,4 +233,4 @@ if __name__ == '__main__':
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 1, 40, contiguous=True, document=True)
+    b_line_threshold_experiment('results/predictions/frames_muggle_external_frames_predictions.csv', 1, 40, contiguous=True, document=True)

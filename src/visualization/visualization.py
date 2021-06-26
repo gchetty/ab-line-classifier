@@ -2,6 +2,7 @@ import datetime
 import os
 import io
 import yaml
+import math
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
@@ -199,6 +200,13 @@ def plot_b_line_threshold_experiment(metrics_df, metrics_to_plot=None):
     for metric_name in metric_names:
         if is_numeric_dtype(metrics_df[metric_name]):
             ax.plot(metrics_df['B-line Threshold'], metrics_df[metric_name])
+
+    # Change axis ticks
+    x_start, x_end = ax.get_xlim()
+    ax.xaxis.set_ticks(np.arange(math.ceil(x_start), math.ceil(x_end), 5))
+    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.1))
+
+    # Draw legend
     ax.legend(metric_names, loc='lower right')
 
     plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'b-line_thresholds_' +
