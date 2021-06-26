@@ -203,7 +203,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
     metrics_df.insert(0, B_LINE_THRESHOLD, np.arange(min_b_lines, max_b_lines + 1))
 
     if document:
-        plot_b_line_threshold_experiment(metrics_df)
+        plot_b_line_threshold_experiment(metrics_df, min_b_lines, max_b_lines)
         metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'b-line_thresholds_' +
                               datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=False)
     return metrics_df

@@ -178,11 +178,13 @@ def plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=
                     datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
 
 
-def plot_b_line_threshold_experiment(metrics_df, metrics_to_plot=None):
+def plot_b_line_threshold_experiment(metrics_df, min_threshold, max_threshold, metrics_to_plot=None):
     '''
     Visualizes the Plot classification metrics for clip predictions over various B-line count thresholds.
     :param metrics_df: DataFrame containing classification metrics for different . The first column should be the
                        various B-line thresholds and the rest are classification metrics
+    :param min_threshold: Minimum B-line threshold
+    :param max_threshold: Maximum B-line threshold
     :param metrics_to_plot: List of metrics to include on the plot
     '''
 
@@ -201,10 +203,12 @@ def plot_b_line_threshold_experiment(metrics_df, metrics_to_plot=None):
         if is_numeric_dtype(metrics_df[metric_name]):
             ax.plot(metrics_df['B-line Threshold'], metrics_df[metric_name])
 
-    # Change axis ticks
-    x_start, x_end = ax.get_xlim()
-    ax.xaxis.set_ticks(np.arange(math.ceil(x_start), math.ceil(x_end), 5))
-    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.1))
+    # Change axis ticks and add grid
+    ax.minorticks_on()
+    ax.set_xlim(min_threshold - 1, max_threshold + 1)
+    ax.xaxis.set_ticks(np.arange(0, max_threshold + 1, 5))
+    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.05))
+    ax.grid(True, which='both', color='lightgrey')
 
     # Draw legend
     ax.legend(metric_names, loc='lower right')
