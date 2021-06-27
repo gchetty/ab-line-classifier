@@ -17,7 +17,6 @@ for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
 
 # Repeated column names
-N_B_LINES = '# B-line'
 B_LINE_THRESHOLD = 'B-line Threshold'
 PRED_CLASS = 'Pred Class'
 CLASS_NUM = 'Class'
@@ -79,7 +78,7 @@ def compute_metrics(cfg, labels, preds, probs=None):
     metrics['f1'] = f1
     metrics['accuracy'] = accuracy_score(labels, preds)
 
-    if probs is not None:
+    if probs:
         metrics['macro_mean_auc'] = roc_auc_score(labels, probs[:,1], average='macro', multi_class='ovr')
         metrics['weighted_mean_auc'] = roc_auc_score(labels, probs[:,1], average='weighted', multi_class='ovr')
 
@@ -187,16 +186,19 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
     preds_df = pd.read_csv(frame_preds_path)
     preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
     preds_df[PRED_CLASS] = preds_df['b_lines'].ge(0.5).astype(int)
+    preds_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'preds.csv', index=False)
 
     if contiguous:
-        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: max_contiguous_b_line_preds})
+        n_b_lines_col = 'Contiguous Predicted B-line'
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: max_contiguous_b_line_preds})
     else:
-        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'first', PRED_CLASS: 'sum'})
-    clips_df.rename(columns={PRED_CLASS: N_B_LINES}, inplace=True)
+        n_b_lines_col = 'Total Predicted B-line'
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: 'sum'})
+    clips_df.rename(columns={PRED_CLASS: n_b_lines_col}, inplace=True)
     metrics_df = pd.DataFrame()
 
     for threshold in range(min_b_lines, max_b_lines + 1):
-        clips_df[PRED_CLASS] = clips_df[N_B_LINES].ge(threshold).astype(int)
+        clips_df[PRED_CLASS] = clips_df[n_b_lines_col].ge(threshold).astype(int)
         metrics = compute_metrics(cfg, np.array(clips_df[CLASS_NUM]), np.array(clips_df[PRED_CLASS]))
         metrics_flattened = pd.json_normalize(metrics, sep='_')
         metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
@@ -206,6 +208,9 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
         plot_b_line_threshold_experiment(metrics_df, min_b_lines, max_b_lines)
         metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'b-line_thresholds_' +
                               datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=False)
+        clips_df.drop(PRED_CLASS, axis=1, inplace=True)
+        clips_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'clip_contiguous_preds_' +
+                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=True)
     return metrics_df
 
 
@@ -233,4 +238,4 @@ if __name__ == '__main__':
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_experiment('results/predictions/frames_muggle_external_frames_predictions.csv', 1, 40, contiguous=True, document=True)
+    b_line_threshold_experiment('results/predictions/ext_frames_predictions.csv', 1, 40, contiguous=True, document=True)
