@@ -195,13 +195,18 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
         n_b_lines_col = 'Total Predicted B-line'
         clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: 'sum'})
     clips_df.rename(columns={PRED_CLASS: n_b_lines_col}, inplace=True)
+
     metrics_df = pd.DataFrame()
+    tprs = []   # True positive rates at different CTs
+    fprs = []   # False positive rates at different CTs
 
     for threshold in range(min_b_lines, max_b_lines + 1):
         clips_df[PRED_CLASS] = clips_df[n_b_lines_col].ge(threshold).astype(int)
         metrics = compute_metrics(cfg, np.array(clips_df[CLASS_NUM]), np.array(clips_df[PRED_CLASS]))
         metrics_flattened = pd.json_normalize(metrics, sep='_')
         metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
+        tprs.append(metrics['recall'])
+        fprs.append(1. - metrics['specificity'])
     metrics_df.insert(0, B_LINE_THRESHOLD, np.arange(min_b_lines, max_b_lines + 1))
 
     if document:
@@ -211,6 +216,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
         clips_df.drop(PRED_CLASS, axis=1, inplace=True)
         clips_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'clip_contiguous_preds_' +
                               datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=True)
+        plot_b_line_threshold_roc_curve(tprs, fprs)
     return metrics_df
 
 
@@ -238,4 +244,4 @@ if __name__ == '__main__':
     # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     # compute_metrics_by_clip(cfg, dataset_path, clips_path)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_experiment('results/predictions/ext_frames_predictions.csv', 1, 40, contiguous=True, document=True)
+    b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 100, contiguous=True, document=True)

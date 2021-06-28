@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import confusion_matrix, roc_curve
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 from skopt.plots import plot_objective
 from pandas.api.types import is_numeric_dtype
 
@@ -214,4 +214,32 @@ def plot_b_line_threshold_experiment(metrics_df, min_threshold, max_threshold, m
     ax.legend(metric_names, loc='lower right')
 
     plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'b-line_thresholds_' +
+                datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
+
+
+def plot_b_line_threshold_roc_curve(tprs, fprs):
+    '''
+    Plot ROC curve and determine AUC, given a list of true positive and false positive rates at a variety of thresholds.
+    :param tprs: List of true positive rates
+    :param fprs: List of false positive rates
+    '''
+    print(fprs)
+    print(tprs)
+    plt.clf()
+    ax = plt.subplot()
+    ax.plot(fprs, tprs, linewidth=3)  # Plot the ROC curve
+
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    ax.set_xlim(0., 1.)
+    ax.set_ylim(0., 1.)
+    ax.xaxis.set_ticks(np.arange(0., 1.01, 0.1))
+    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.1))
+    ax.grid(True, color='lightgrey')
+    ax.set_aspect('equal')
+
+    AUC = auc(fprs, tprs)
+    plt.title("ROC for Varying B-line Thresholds (AUC={:.5f})".format(AUC))
+
+    plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'roc_ct_' +
                 datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
