@@ -23,12 +23,13 @@ CLASS_NUM = 'Class'
 CLIP = 'Clip'
 
 
-def predict_set(model, preprocessing_func, predict_df):
+def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
     '''
     Given a dataset, make predictions for each constituent example.
     :param model: A trained TensorFlow model
     :param preprocessing_func: Preprocessing function to apply before sending image to model
     :param predict_df: Pandas Dataframe of LUS frames, linking image filenames to labels
+    :param threshold: Classification threshold
     :return: List of predicted classes, array of classwise prediction probabilities
     '''
 
@@ -47,7 +48,7 @@ def predict_set(model, preprocessing_func, predict_df):
 
     # Obtain prediction probabilities
     p = model.predict_generator(generator)
-    test_predictions = np.argmax(p, axis=1)
+    test_predictions = (p[:, 1] > threshold).astype(int)
 
     # Get prediction classes in original labelling system
     pred_classes = [class_idx_map[v] for v in list(test_predictions)]
@@ -118,7 +119,7 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path):
         print("Making predictions for clip " + clip_name)
 
         # Make predictions for each image
-        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df)
+        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=0.5)
 
         # Compute average prediction probabilities for entire clip
         avg_pred_prob = np.mean(pred_probs, axis=0)
@@ -156,7 +157,7 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     frame_labels = files_df['Class']    # Get ground truth
 
     # Make predictions for each image
-    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df)
+    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, threshold=0.5)
 
     # Compute and save metrics
     metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
