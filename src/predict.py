@@ -79,7 +79,7 @@ def compute_metrics(cfg, labels, preds, probs=None):
     metrics['f1'] = f1
     metrics['accuracy'] = accuracy_score(labels, preds)
 
-    if probs:
+    if probs is not None:
         metrics['macro_mean_auc'] = roc_auc_score(labels, probs[:,1], average='macro', multi_class='ovr')
         metrics['weighted_mean_auc'] = roc_auc_score(labels, probs[:,1], average='weighted', multi_class='ovr')
 
@@ -91,7 +91,7 @@ def compute_metrics(cfg, labels, preds, probs=None):
     return metrics
 
 
-def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path):
+def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, ct=None):
     '''
     For a particular dataset, use predictions for each filename to create predictions for whole clips and save the
     resulting metrics.
@@ -122,7 +122,10 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path):
         pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=0.5)
 
         # Compute average prediction probabilities for entire clip
-        avg_pred_prob = np.mean(pred_probs, axis=0)
+        if ct:
+            avg_pred_prob = highest_contiguous_pred_prob(pred_probs)
+        else:
+            avg_pred_prob = np.mean(pred_probs, axis=0)
         avg_pred_probs[i] = avg_pred_prob
 
         # Record predicted class
@@ -190,10 +193,10 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
     preds_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'preds.csv', index=False)
 
     if contiguous:
-        n_b_lines_col = 'Contiguous Predicted B-line'
+        n_b_lines_col = 'Contiguous Predicted B-lines'
         clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: max_contiguous_b_line_preds})
     else:
-        n_b_lines_col = 'Total Predicted B-line'
+        n_b_lines_col = 'Total Predicted B-lines'
         clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: 'sum'})
     clips_df.rename(columns={PRED_CLASS: n_b_lines_col}, inplace=True)
 
@@ -239,10 +242,24 @@ def max_contiguous_b_line_preds(pred_series):
     return max_contiguous
 
 
+def highest_contiguous_pred_prob(pred_probs, ct):
+    '''
+    Determines the highest average frame prediction over ct contiguous clips
+    :param pred_probs [N, C]: framewise predictions for each class
+    :param ct: contiguity threshold
+    '''
+    max_b_pred = 0.0
+    for i in range(0, pred_probs.shape[0] - ct + 1):
+        avg_b_pred = np.mean(pred_probs[i:i + ct, 1])
+        if avg_b_pred > max_b_pred:
+            max_b_pred = avg_b_pred
+    return np.array([1. - max_b_pred, max_b_pred])
+
+
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    dataset_path = 'data/partitions/test_set_final.csv'
-    # clips_path = cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
-    # compute_metrics_by_clip(cfg, dataset_path, clips_path)
+    dataset_path = 'data/partitions/test_set_final.csv' #'data/partitions/test_set_final.csv'
+    clips_path = 'data/frames_actually_cropped.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
+    compute_metrics_by_clip(cfg, dataset_path, clips_path, ct=10)
     # compute_metrics_by_frame(cfg, dataset_path)
-    b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 100, contiguous=True, document=True)
+    # b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 100, contiguous=True, document=True)
