@@ -48,7 +48,7 @@ def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
 
     # Obtain prediction probabilities
     p = model.predict_generator(generator)
-    test_predictions = (p[:, 1] > threshold).astype(int)
+    test_predictions = (p[:, 1] >= threshold).astype(int)
 
     # Get prediction classes in original labelling system
     pred_classes = [class_idx_map[v] for v in list(test_predictions)]
@@ -91,13 +91,15 @@ def compute_metrics(cfg, labels, preds, probs=None):
     return metrics
 
 
-def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, ct=None):
+def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thresh=0.5, cont_thresh=None):
     '''
     For a particular dataset, use predictions for each filename to create predictions for whole clips and save the
     resulting metrics.
     :param cfg: project config
     :param frames_table_path: Path to CSV of Dataframe linking filenames to labels
     :param clips_table_path: Path to CSV of Dataframe linking clips to labels
+    :param class_thresh: Classification threshold for frame prediction
+    :param cont_thresh: Contiguity threshold
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
@@ -119,11 +121,11 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, ct=None):
         print("Making predictions for clip " + clip_name)
 
         # Make predictions for each image
-        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=0.5)
+        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=class_thresh)
 
         # Compute average prediction probabilities for entire clip
-        if ct:
-            avg_pred_prob = highest_contiguous_pred_prob(pred_probs)
+        if cont_thresh:
+            avg_pred_prob = highest_contiguous_pred_prob(pred_probs, ct=cont_thresh)
         else:
             avg_pred_prob = np.mean(pred_probs, axis=0)
         avg_pred_probs[i] = avg_pred_prob
@@ -145,11 +147,12 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, ct=None):
     return
 
 
-def compute_metrics_by_frame(cfg, dataset_files_path):
+def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
     '''
     For a particular dataset, make predictions for each image and compute metrics. Save the resultant metrics.
     :param cfg: project config
     :param dataset_files_path: Path to CSV of Dataframe linking filenames to labels
+    :param class_thresh: Classification threshold for frame prediction
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
@@ -160,7 +163,7 @@ def compute_metrics_by_frame(cfg, dataset_files_path):
     frame_labels = files_df['Class']    # Get ground truth
 
     # Make predictions for each image
-    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, threshold=0.5)
+    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, threshold=class_thresh)
 
     # Compute and save metrics
     metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
@@ -259,7 +262,7 @@ def highest_contiguous_pred_prob(pred_probs, ct):
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
     dataset_path = 'data/partitions/test_set_final.csv' #'data/partitions/test_set_final.csv'
-    clips_path = 'data/frames_actually_cropped.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
-    compute_metrics_by_clip(cfg, dataset_path, clips_path, ct=10)
-    # compute_metrics_by_frame(cfg, dataset_path)
-    # b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 100, contiguous=True, document=True)
+    clips_path = 'data/clips_by_patient_cropped.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
+    compute_metrics_by_clip(cfg, dataset_path, clips_path, class_thresh=0.1, cont_thresh=None)
+    #compute_metrics_by_frame(cfg, dataset_path, class_thresh=0.5)
+    #b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 40, contiguous=True, document=True)

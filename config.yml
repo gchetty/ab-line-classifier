@@ -1,9 +1,9 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patient_cropped.csv'
-  FRAME_TABLE: 'data/frames_cropped.csv'   # Path to all LUS frames in the dataset
+  FRAME_TABLE: 'data/frames_actually_cropped.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
-  FRAMES: 'B:/Datasets/data_actually_cropped'
+  FRAMES: 'B:/Datasets/pure_pathological&muggle/frames_external_a_b'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
@@ -28,7 +28,7 @@ DATA:
 
 TRAIN:
   MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
-  EXPERIMENT_TYPE: 'cross_validation'               # One of {'single_train', 'cross_validation', 'hparam_search'}
+  EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   N_CLASSES: 2
   BATCH_SIZE: 256
   EPOCHS: 15

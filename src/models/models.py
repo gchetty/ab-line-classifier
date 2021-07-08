@@ -440,7 +440,6 @@ class CutoffVGG16:
         X_input = Input(shape=self.input_shape, name='input')
         vgg16 = VGG16(input_shape=self.input_shape, include_top=False, weights='imagenet')
         self.vgg16_layers = vgg16.layers[1:self.cutoff_layer]
-        X = X_input
         for layer in self.vgg16_layers:
             X = layer(X)
         X = GlobalAveragePooling2D(name='global_avgpool')(X)
