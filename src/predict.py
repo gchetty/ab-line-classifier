@@ -22,6 +22,10 @@ PRED_CLASS = 'Pred Class'
 CLASS_NUM = 'Class'
 CLIP = 'Clip'
 
+# Class map
+CLASS_IDX_MAP = dill.load(open(cfg['PATHS']['CLASS_NAME_MAP'], 'rb'))
+IDX_CLASS_MAP = {v: k for k, v in CLASS_IDX_MAP.items()}  # Reverse the map
+
 
 def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
     '''
@@ -43,15 +47,13 @@ def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
                                             x_col=x_col, y_col=y_col, target_size=img_shape,
                                             batch_size=cfg['TRAIN']['BATCH_SIZE'],
                                             class_mode=class_mode, validate_filenames=True, shuffle=False)
-    class_idx_map = dill.load(open(cfg['PATHS']['CLASS_NAME_MAP'], 'rb'))
-    class_idx_map = {v: k for k, v in class_idx_map.items()}    # Reverse the map
 
     # Obtain prediction probabilities
     p = model.predict_generator(generator)
-    test_predictions = (p[:, 1] >= threshold).astype(int)
+    test_predictions = (p[:, CLASS_IDX_MAP['b_lines']] >= threshold).astype(int)
 
     # Get prediction classes in original labelling system
-    pred_classes = [class_idx_map[v] for v in list(test_predictions)]
+    pred_classes = [IDX_CLASS_MAP[v] for v in list(test_predictions)]
     test_predictions = [cfg['DATA']['CLASSES'].index(c) for c in pred_classes]
     return test_predictions, p
 
@@ -74,8 +76,8 @@ def compute_metrics(cfg, labels, preds, probs=None):
 
     metrics['confusion_matrix'] = confusion_matrix(labels, preds).tolist()
     metrics['precision'] = precision
-    metrics['recall'] = recalls[1]          # Recall of the positive class (i.e. sensitivity)
-    metrics['specificity'] = recalls[0]     # Specificity is recall of the negative class
+    metrics['recall'] = recalls[CLASS_IDX_MAP['b_lines']]          # Recall of the positive class (i.e. sensitivity)
+    metrics['specificity'] = recalls[CLASS_IDX_MAP['a_lines']]     # Specificity is recall of the negative class
     metrics['f1'] = f1
     metrics['accuracy'] = accuracy_score(labels, preds)
 
@@ -116,7 +118,7 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
     for i in range(len(clip_names)):
 
         # Get records from all files from this clip
-        clip_name = clip_names[i].split('/')[-1].split(' ')[0]
+        clip_name = clip_names[i]
         clip_files_df = frames_df[frames_df['Frame Path'].str.contains(clip_name)]
         print("Making predictions for clip " + clip_name)
 
@@ -131,12 +133,13 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
         avg_pred_probs[i] = avg_pred_prob
 
         # Record predicted class
-        clip_pred = np.argmax(avg_pred_prob)
+        clip_pred = (avg_pred_prob[CLASS_IDX_MAP['b_lines']] >= class_thresh).astype(int)
         clip_pred_classes.append(clip_pred)
 
     metrics = compute_metrics(cfg, np.array(clip_labels), np.array(clip_pred_classes), avg_pred_probs)
     print(metrics)
-    doc = json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'clips_' + set_name + '.json', 'w'))
+    json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'clips_' + set_name +
+                             datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
 
     # Save predictions
     avg_pred_probs_df = pd.DataFrame(avg_pred_probs, columns=cfg['DATA']['CLASSES'])
@@ -167,7 +170,8 @@ def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
 
     # Compute and save metrics
     metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
-    doc = json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' + set_name + '.json', 'w'))
+    json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' + set_name +
+                            datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
 
     # Save predictions
     pred_probs_df = pd.DataFrame(pred_probs, columns=cfg['DATA']['CLASSES'])
@@ -178,13 +182,14 @@ def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
     return
 
 
-def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, contiguous=True, document=False):
+def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, class_thresh=0.5, contiguous=True, document=False):
     '''
     Varies the levels of thresholds for number of predicted frames with B-lines needed to classify a clip as
     pathological. Computes metrics for each threshold value. Saves a table and visualization of the results.
     :param frame_preds_path: Path to CSV file containing frame-wise predictions.
     :min_b_lines: minimum clip-wise B-line classification threshold
     :max_b_lines: maximum clip-wise B-line classification threshold
+    :param class_thresh: Classification threshold for frame prediction
     :contiguous: if set to True, uses the maximum contiguous B-line predictions as the clip prediction threshold;
                  if set to False, uses the total B-line predictions as the clip prediction threshold.
     :document: if set to True, generates a visualization and saves it as an image, along with a CSV
@@ -192,7 +197,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, cont
 
     preds_df = pd.read_csv(frame_preds_path)
     preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
-    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(0.5).astype(int)
+    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(class_thresh).astype(int)
     preds_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'preds.csv', index=False)
 
     if contiguous:
@@ -261,8 +266,8 @@ def highest_contiguous_pred_prob(pred_probs, ct):
 
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    dataset_path = 'data/partitions/test_set_final.csv' #'data/partitions/test_set_final.csv'
-    clips_path = 'data/clips_by_patient_cropped.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
-    compute_metrics_by_clip(cfg, dataset_path, clips_path, class_thresh=0.1, cont_thresh=None)
-    #compute_metrics_by_frame(cfg, dataset_path, class_thresh=0.5)
-    #b_line_threshold_experiment('results/predictions/test_set_final_frames_predictions.csv', 0, 40, contiguous=True, document=True)
+    frames_path = 'data/frames_external_a_b.csv' #'data/partitions/test_set_final.csv'
+    clips_path = 'data/clips_by_patient_external_a_b.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
+    #compute_metrics_by_clip(cfg, frames_path, clips_path, class_thresh=0.9, cont_thresh=None)
+    #compute_metrics_by_frame(cfg, frames_path, class_thresh=0.9)
+    b_line_threshold_experiment('results/experiments/exp5/external_frames_preds_all.csv', 0, 40, class_thresh=1.0, contiguous=False, document=True)
