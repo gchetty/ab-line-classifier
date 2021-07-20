@@ -21,6 +21,9 @@ B_LINE_THRESHOLD = 'B-line Threshold'
 PRED_CLASS = 'Pred Class'
 CLASS_NUM = 'Class'
 CLIP = 'Clip'
+B_PROB = 'b_lines'
+A_PROB = 'a_lines'
+SLIDING_WINDOW = 'Sliding Window Length'
 
 # Class map
 CLASS_IDX_MAP = dill.load(open(cfg['PATHS']['CLASS_NAME_MAP'], 'rb'))
@@ -93,7 +96,7 @@ def compute_metrics(cfg, labels, preds, probs=None):
     return metrics
 
 
-def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thresh=0.5, cont_thresh=None):
+def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thresh=0.5, window_length=None):
     '''
     For a particular dataset, use predictions for each filename to create predictions for whole clips and save the
     resulting metrics.
@@ -101,7 +104,7 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
     :param frames_table_path: Path to CSV of Dataframe linking filenames to labels
     :param clips_table_path: Path to CSV of Dataframe linking clips to labels
     :param class_thresh: Classification threshold for frame prediction
-    :param cont_thresh: Contiguity threshold
+    :param window_length: Length of sliding window for average contiguous predictions
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
@@ -126,8 +129,8 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
         pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=class_thresh)
 
         # Compute average prediction probabilities for entire clip
-        if cont_thresh:
-            avg_pred_prob = highest_contiguous_pred_prob(pred_probs, ct=cont_thresh)
+        if window_length:
+            avg_pred_prob = highest_avg_contiguous_pred_prob(pred_probs, ct=window_length)
         else:
             avg_pred_prob = np.mean(pred_probs, axis=0)
         avg_pred_probs[i] = avg_pred_prob
@@ -197,7 +200,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, clas
 
     preds_df = pd.read_csv(frame_preds_path)
     preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
-    preds_df[PRED_CLASS] = preds_df['b_lines'].ge(class_thresh).astype(int)
+    preds_df[PRED_CLASS] = preds_df[B_PROB].ge(class_thresh).astype(int)
     preds_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'preds.csv', index=False)
 
     if contiguous:
@@ -222,7 +225,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, clas
     metrics_df.insert(0, B_LINE_THRESHOLD, np.arange(min_b_lines, max_b_lines + 1))
 
     if document:
-        plot_b_line_threshold_experiment(metrics_df, min_b_lines, max_b_lines)
+        plot_b_line_threshold_experiment(metrics_df, min_b_lines, max_b_lines, B_LINE_THRESHOLD, class_thresh)
         metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'b-line_thresholds_' +
                               datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=False)
         clips_df.drop(PRED_CLASS, axis=1, inplace=True)
@@ -250,24 +253,71 @@ def max_contiguous_b_line_preds(pred_series):
     return max_contiguous
 
 
-def highest_contiguous_pred_prob(pred_probs, ct):
+def highest_avg_contiguous_pred_prob(pred_probs, window_length):
     '''
     Determines the highest average frame prediction over ct contiguous clips
     :param pred_probs [N, C]: framewise predictions for each class
-    :param ct: contiguity threshold
+    :param window_length: Length of sliding window for average contiguous predictions
     '''
     max_b_pred = 0.0
-    for i in range(0, pred_probs.shape[0] - ct + 1):
-        avg_b_pred = np.mean(pred_probs[i:i + ct, 1])
+    for i in range(0, pred_probs.shape[0] - window_length + 1):
+        avg_b_pred = np.mean(pred_probs[i:i + window_length, 1])
         if avg_b_pred > max_b_pred:
             max_b_pred = avg_b_pred
     return np.array([1. - max_b_pred, max_b_pred])
 
 
+def sliding_window_variation_experiment(frame_preds_path, min_window_length, max_window_length, class_thresh=0.5, document=False):
+    '''
+    Varies the sliding window length over which predictions are averaged when classifying clips using the highest
+    average contiguous probability algorithm. Computes metrics for each threshold value.
+    Saves a table and visualization of the results.
+    :param frame_preds_path: Path to CSV file containing frame-wise predictions.
+    :min_window_length: minimum sliding window length
+    :max_window_length maximum sliding window length
+    :param class_thresh: Classification threshold for frame prediction
+    :document: if set to True, generates a visualization and saves it as an image, along with a CSV
+    '''
+
+    preds_df = pd.read_csv(frame_preds_path)
+    preds_df[CLIP] = preds_df["Frame Path"].str.rpartition("_")[0]
+
+    def highest_avg_b_line_prob(b_probs_series, window_length):
+        '''
+        Helper function that computes highest B-line probability averaged over window_length contiguous frames
+        '''
+        max_b_pred = 0.0
+        for i in range(0, b_probs_series.shape[0] - window_length + 1):
+            avg_b_pred = np.mean(b_probs_series[i:i + window_length])
+            if avg_b_pred > max_b_pred:
+                max_b_pred = avg_b_pred
+        return max_b_pred
+
+    metrics_df = pd.DataFrame()
+    for window_length in range(min_window_length, max_window_length + 1):
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', B_PROB: lambda x: highest_avg_b_line_prob(x, window_length)})
+        clips_df[A_PROB] = 1. - clips_df[B_PROB]
+        clips_df[PRED_CLASS] = clips_df[B_PROB].ge(class_thresh).astype(int)
+
+        pred_probs = np.array(clips_df[[A_PROB, B_PROB]])
+        metrics = compute_metrics(cfg, np.array(clips_df[CLASS_NUM]), np.array(clips_df[PRED_CLASS]), probs=pred_probs)
+        metrics_flattened = pd.json_normalize(metrics, sep='_')
+        metrics_df = pd.concat([metrics_df, metrics_flattened], axis=0)
+    metrics_df.insert(0, SLIDING_WINDOW, np.arange(min_window_length, max_window_length + 1))
+
+    if document:
+        plot_b_line_threshold_experiment(metrics_df, min_window_length, max_window_length, SLIDING_WINDOW, class_thresh)
+        metrics_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'sliding_window_exp_c' + str(class_thresh) + '_' +
+                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=False)
+        clips_df.drop(PRED_CLASS, axis=1, inplace=True)
+        clips_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'clip_sliding_window_preds_c' + str(class_thresh) + '_' +
+                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=True)
+
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    frames_path = 'data/frames_external_a_b.csv' #'data/partitions/test_set_final.csv'
-    clips_path = 'data/clips_by_patient_external_a_b.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
+    frames_path = 'data/Ottawa/frames.csv' #'data/partitions/test_set_final.csv'
+    clips_path = 'data/Ottawa/clips_by_patient.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
     #compute_metrics_by_clip(cfg, frames_path, clips_path, class_thresh=0.9, cont_thresh=None)
     #compute_metrics_by_frame(cfg, frames_path, class_thresh=0.9)
-    b_line_threshold_experiment('results/experiments/exp5/external_frames_preds_all.csv', 0, 40, class_thresh=1.0, contiguous=False, document=True)
+    #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
+    sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)
