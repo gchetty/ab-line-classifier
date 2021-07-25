@@ -2,11 +2,12 @@ import datetime
 import os
 import io
 import yaml
+import math
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import confusion_matrix, roc_curve
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 from skopt.plots import plot_objective
 from pandas.api.types import is_numeric_dtype
 
@@ -67,7 +68,7 @@ def plot_roc(labels, predictions, class_name_list, dir_path=None, title=None):
     '''
     Plots the ROC curve for predictions on a dataset
     :param labels: Ground truth labels
-    :param predictions: Model predictions corresponding to the labels
+    :param predictions: Model prediction probabilities corresponding to the labels
     :param class_name_list: Ordered list of class names
     :param dir_path: Directory in which to save image
     '''
@@ -177,29 +178,70 @@ def plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=
                     datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
 
 
-def plot_b_line_threshold_experiment(metrics_df, metrics_to_plot=None):
+def plot_b_line_threshold_experiment(metrics_df, min_threshold, max_threshold, thresh_col, class_thresh, metrics_to_plot=None):
     '''
     Visualizes the Plot classification metrics for clip predictions over various B-line count thresholds.
     :param metrics_df: DataFrame containing classification metrics for different . The first column should be the
                        various B-line thresholds and the rest are classification metrics
+    :param min_threshold: Minimum B-line threshold
+    :param max_threshold: Maximum B-line threshold
+    :thresh_col: Column of DataFrame corresponding to threshold variable
+    :class_thresh: Classification threshold
     :param metrics_to_plot: List of metrics to include on the plot
     '''
 
     ax = plt.subplot()
-    plt.title('Classification Metrics for Clip Predictions vs. B-line Threshold')
-    ax.set_xlabel('B-line Clip Classification Threshold')
+    plt.title('Classification Metrics for Clip Predictions vs. ' + thresh_col + ' (classification threshold = ' + str(class_thresh) + ')')
+    ax.set_xlabel(thresh_col)
     ax.set_ylim(0., 1.)
 
     if metrics_to_plot is None:
-        metric_names = [m for m in metrics_df.columns if m != 'B-line Threshold' and is_numeric_dtype(metrics_df[m])]
+        metric_names = [m for m in metrics_df.columns if m != thresh_col and is_numeric_dtype(metrics_df[m])]
     else:
         metric_names = metrics_to_plot
 
     # Plot each metric as a separate series and place a legend
     for metric_name in metric_names:
         if is_numeric_dtype(metrics_df[metric_name]):
-            ax.plot(metrics_df['B-line Threshold'], metrics_df[metric_name])
+            ax.plot(metrics_df[thresh_col], metrics_df[metric_name])
+
+    # Change axis ticks and add grid
+    ax.minorticks_on()
+    ax.set_xlim(min_threshold - 1, max_threshold + 1)
+    ax.xaxis.set_ticks(np.arange(0, max_threshold + 1, 5))
+    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.05))
+    ax.grid(True, which='both', color='lightgrey')
+
+    # Draw legend
     ax.legend(metric_names, loc='lower right')
 
-    plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'b-line_thresholds_' +
+    plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + thresh_col +
+                datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
+
+
+def plot_b_line_threshold_roc_curve(tprs, fprs):
+    '''
+    Plot ROC curve and determine AUC, given a list of true positive and false positive rates at a variety of thresholds.
+    :param tprs: List of true positive rates
+    :param fprs: List of false positive rates
+    '''
+    print(fprs)
+    print(tprs)
+    plt.clf()
+    ax = plt.subplot()
+    ax.plot(fprs, tprs, linewidth=3)  # Plot the ROC curve
+
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    ax.set_xlim(0., 1.)
+    ax.set_ylim(0., 1.)
+    ax.xaxis.set_ticks(np.arange(0., 1.01, 0.1))
+    ax.yaxis.set_ticks(np.arange(0., 1.01, 0.1))
+    ax.grid(True, color='lightgrey')
+    ax.set_aspect('equal')
+
+    AUC = auc(fprs, tprs)
+    plt.title("ROC for Varying B-line Thresholds (AUC={:.5f})".format(AUC))
+
+    plt.savefig(cfg['PATHS']['EXPERIMENT_VISUALIZATIONS'] + 'roc_ct_' +
                 datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
