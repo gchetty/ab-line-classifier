@@ -1,4 +1,5 @@
 import dill
+import time
 import yaml
 import os
 import numpy as np
@@ -312,6 +313,29 @@ def sliding_window_variation_experiment(frame_preds_path, min_window_length, max
         clips_df.drop(PRED_CLASS, axis=1, inplace=True)
         clips_df.to_csv(cfg['PATHS']['EXPERIMENTS'] + 'clip_sliding_window_preds_c' + str(class_thresh) + '_' +
                               datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv', index=True)
+
+def clock_avg_runtime(n_gpu_warmup_runs, n_experiment_runs):
+    '''
+    Measures the average inference time of a trained model. Executes a few warm-up runs, then measures the inference
+    time of the model over a series of trials.
+    :param n_gpu_warmup_runs: The number of inference runs to warm up the GPU
+    :param n_experiment_runs: The number of inference runs to record
+    :return: Average and standard deviation of the times of the recorded inference runs
+    '''
+    times = np.zeros((n_experiment_runs))
+    img_dim = cfg['DATA']['IMG_DIM']
+    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+    for i in range(n_gpu_warmup_runs):
+        x = tf.random.normal((1, img_dim[0], img_dim[1], 3))
+        y = model(x)
+    for i in range(n_experiment_runs):
+        x = tf.random.normal((1, img_dim[0], img_dim[1], 3))
+        t_start = time.time()
+        y = model(x)
+        times[i] = time.time() - t_start
+    t_avg_ms = np.mean(times) * 1000
+    t_std_ms = np.std(times) * 1000
+    print("Average runtime = {:.3f} ms, standard deviation = {:.3f} ms".format(t_avg_ms, t_std_ms))
 
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
