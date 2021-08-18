@@ -33,8 +33,6 @@ TRAIN:
   BATCH_SIZE: 256
   EPOCHS: 15
   PATIENCE: 15
-  METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
-  NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 10
   DATA_AUG:

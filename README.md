@@ -6,11 +6,11 @@ of automating the distinction between normal and abnormal lung tissue based of a
 
 
 This repository contains work relating to development and validation of an A-line vs. B-line
-ultrasound image classifier that was used for the creation of the paper [INSERT PAPER NAME](link-to-the-peper.com).
+ultrasound image classifier that was used for the creation of the paper [UPDATE PAPER TITLE](link-to-the-peper.com).
 
 ## Table of Contents
 1. [**_Getting Started_**](#getting-started)
-2. [**_Data Pre-Processing_**](#data-pre-processing)
+2. [**_Building a Dataset_**](#building-a-dataset)
 3. [**_Use Cases_**](#use-cases)  
    i)[**_Train Single Experiment_**](#train-single-experiment)  
    ii) [**_K-Fold Cross Validation_**](#k-fold-cross-validation)  
@@ -30,32 +30,42 @@ ultrasound image classifier that was used for the creation of the paper [INSERT 
    ```
    $ pip install -r requirements.txt
    ```
-3. Obtain lung ultrasound (LUS) data and preprocess it accordingly. See
-   [Data preprocessing](#data-preprocessing) for more details.
+3. Obtain lung ultrasound data and preprocess it accordingly. See
+   [building a dataset](#building-a-dataset) for more details.
 4. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
    the appropriate string representing the model type you wish to
    train. To train a model, ensure the _TRAIN >>
    EXPERIMENT_TYPE_ field is set to _'train_single'_.
 5. Execute [_train.py_](src/train.py) to train your chosen model on your
    preprocessed data. The trained model will be serialized within
-   _results/models/_, and its filename will resemble the following
-   structure: _{modeltype}{yyyymmdd-hhmmss}.{ext}_, where _{modeltype}_
-   is the type of model trained, _{yyyymmdd-hhmmss}_ is the current
-   time, and _{ext}_ is the appropriate file extension.
-6. Navigate to _results/experiments/_ to see the performance metrics
-   achieved by the model's forecast on the test set. The file name will
-   be _{modeltype}_eval_{yyyymmdd-hhmmss}.csv_. You can find a
-   visualization of the test set forecast in
-   _img/UPDATE_ME/_. Its filename will be
-   _UPDATE_ME_.
+   _results/models/_, UPDATE PATH TO TRAINED MODEL and its filename will resemble the following
+   structure: _model{yyyymmdd-hhmmss}.h5_, where _{yyyymmdd-hhmmss}_ is the current
+   time.
+6. Navigate to _results/logs/_ to see the performance metrics
+   achieved by the model's forecast on the test set UPDATE?. The folder name will
+   be _{yyyymmdd-hhmmss}_.  These logs can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
+   visualization of the training results.
    
-## Data Pre-Processing
-for new section about data preprocessing
-add a description of the data required - data type, maybe ping derek for an example of the data types
-basically say if they have data like ours this is how to use
-2 data types, csv of the clip and individual frame csv
-second can be made using a script in the repo
-csvs contain image path
+## Building a Dataset
+
+All ultrasound clips were deconstructed into their constituent frames.  
+Following this, the frames were scrubbed of all on-screen information 
+(e.g. vendor logos, battery indicators, index mark, depth markers) 
+extraneous to the ultrasound beam itself.  This was done using a dedicated
+deep learning masking software for ultrasound (AutoMask, WaveBase Inc., 
+Waterloo, Canada).
+
+The following csv headers can be used to create a clips table csv file to train a model:  
+
+_| filename | patient_id  | a_or_b_lines  | class |_  
+
+Where _filename_ is the name of the labeled clip file, _patient_id_ is a unique patient identifier, 
+_a_or_b_lines_ is a string label for the clip, and _class_ is the label as a class integer.  
+
+Using this clips table csv, a set of lung ultrasound clips in mp4 format, and the 
+[_build-dataset.py_](/src/data/build-dataset.py) script, a frames table can be generated 
+that will be used to train a model.
+
    
 ## Use Cases
 
@@ -89,162 +99,170 @@ below.
 <details closed> 
 <summary>Paths</summary>
 
-- **CLIPS_TABLE**: 'data/clips_by_patient_cropped.csv'
-- **FRAME_TABLE**: 'data/frames_actually_cropped.csv'
-- **DATABASE_QUERY**: 'data/parenchymal_clips.csv'
-- **RAW_CLIPS**: 'data/raw_clips/'
-- **FRAMES**: 'B:/Datasets/Ottawa/pure_and_muggle/frames/'
-- **PARTITIONS**: 'data/partitions/'
-- **TEST_DF**: 'data/partitions/test_set_final.csv'
-- **EXT_VAL_CLIPS_TABLE**: 'data/clips_by_patient_mini.csv'
-- **EXT_VAL_FRAME_TABLE**: 'data/frames_mini.csv'
-- **EXT_VAL_FRAMES**: 'data/frames_mini/'
-- **HEATMAPS**: 'img/heatmaps'
-- **LOGS**: 'results/logs/'
-- **IMAGES**: 'results/figures/'
-- **MODEL_WEIGHTS**: 'results/models/'
-- **MODEL_TO_LOAD**: 'results/models/cutoffvgg16_final_cropped.h5'
-- **CLASS_NAME_MAP**: 'data/serializations/output_class_indices.pkl'
-- **BATCH_PREDS**: 'results/predictions/'
-- **METRICS**: './results/metrics/'
-- **EXPERIMENTS**: './results/experiments/'
-- **EXPERIMENT_VISUALIZATIONS**: './img/experiments/'
+This section of the config contains all path definitions for reading data and writing outputs.
+- **CLIPS_TABLE**: Clip table in csv format.
+- **FRAME_TABLE**: Frame table in csv format.
+- **DATABASE_QUERY** UPDATE
+- **RAW_CLIPS**: Location of raw clip data in UPDATE format.
+- **FRAMES**: Location of frame data in UPDATE format.
+- **PARTITIONS**
+- **TEST_DF**
+- **EXT_VAL_CLIPS_TABLE** UPDATE?
+- **EXT_VAL_FRAME_TABLE**
+- **EXT_VAL_FRAMES**
+- **HEATMAPS**
+- **LOGS**
+- **IMAGES**
+- **MODEL_WEIGHTS**
+- **MODEL_TO_LOAD**: Trained model in h5 file format. UPDATE
+- **CLASS_NAME_MAP**: Output class indices in pkl format.
+- **BATCH_PREDS**
+- **METRICS**
+- **EXPERIMENTS**
+- **EXPERIMENT_VISUALIZATIONS**
 </details>
 
 <details closed> 
 <summary>Data</summary>
 
-- **IMG_DIM**: [128, 128]
-- **VAL_SPLIT**: 0.1
-- **TEST_SPLIT**: 0.1
-- **CLASSES**: ['a_lines', 'b_lines']  
+- **IMG_DIM**: Dimensions for frame resizing.
+- **VAL_SPLIT**: Validation split.
+- **TEST_SPLIT**: Test split.
+- **CLASSES**: A string list of data classes.
 </details>
 
 <details closed> 
 <summary>Train</summary>
 
-- **MODEL_DEF**: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
-- **EXPERIMENT_TYPE**: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
-- **N_CLASSES**: 2
-- **BATCH_SIZE**: 256
-- **EPOCHS**: 15
-- **PATIENCE**: 15
-- **METRIC_PREFERENCE**: ['auc', 'recall', 'precision', 'loss']
-- **NUM_GPUS**: 1
-- **MIXED_PRECISION**: false                         # Necessary for training with Tensor Cores
-- **N_FOLDS**: 10
-- **DATA_AUG**:
-  - **ZOOM_RANGE**: 0.1
-  - **HORIZONTAL_FLIP**: true
-  - **WIDTH_SHIFT_RANGE**: 0.2
-  - **HEIGHT_SHIFT_RANGE**: 0.2
-  - **SHEAR_RANGE**: 10
-  - **ROTATION_RANGE**: 45
-  - **BRIGHTNESS_RANGE**: [0.7, 1.3]
-- **HPARAM_SEARCH**:
-  - **N_EVALS**: 10
-  - **HPARAM_OBJECTIVE**: 'auc'
+- **MODEL_DEF**: Defines the type of frame model to train. One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
+- **EXPERIMENT_TYPE**: Defines the experiment type. One of {'single_train', 'cross_validation', 'hparam_search'}
+- **N_CLASSES**: Number of classes/labels.
+- **BATCH_SIZE**: Batch size.
+- **EPOCHS**: Number of epocs.
+- **PATIENCE**: Number of epochs with no improvement after which training will be stopped.
+- **MIXED_PRECISION** Toggle mixed percision training. Necessary for training with Tensor Cores.
+- **N_FOLDS**: Cross-validation folds.
+- **DATA_AUG**: Data augmentation parameters.
+  - **ZOOM_RANGE**
+  - **HORIZONTAL_FLIP**
+  - **WIDTH_SHIFT_RANGE**
+  - **HEIGHT_SHIFT_RANGE**
+  - **SHEAR_RANGE**
+  - **ROTATION_RANGE**
+  - **BRIGHTNESS_RANGE**
+- **HPARAM_SEARCH**: UPDATE
+  - **N_EVALS**: UPDATE
+  - **HPARAM_OBJECTIVE**: UPDATE
 </details>
 
 <details closed> 
-<summary>Hyper Parameters</summary>
+<summary>Hyperparameters</summary>
 
-- **MOBILENETV2**:
-  - **LR**: 0.001
-  - **DROPOU**T: 0.35
-  - **L2_LAMBDA**: 0.0001
-  - **NODES_DENSE0**: 32
-  - **FROZEN_LAYERS**: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,16,17,18,19,20,21,22,23,24,25,26,26,27,28,29,30]
-- **SHUFFLENETV2**:
-  - **LR**: 0.1
-  - **DROPOUT**: 0.5
-  - **L2_LAMBDA**: 0.01
-- **VGG16**:
-  - **LR**: 0.01
-  - **DROPOUT**: 0.5
-  - **L2_LAMBDA**: 0.01
-  - **NODES_DENSE0**: 64
-  - **FROZEN_LAYERS**: []
-- **XCEPTION**:
-  - **LR**: 0.01
-  - **DROPOUT**: 0.5
-  - **FROZEN_LAYERS**: []
-  - **L2_LAMBDA**: 0.01
-- **BiTR50x1**:
-  - **LR**: 0.1   #https://blog.tensorflow.org/2020/05/bigtransfer-bit-state-of-art-transfer-learning-computer-vision.html
-  - **DROPOUT**: 0.5
-  - **L2_LAMBDA**: 0.01
-- **EFFICIENTNETB7**:
-  - **LR**: 0.1
-  - **DROPOUT**: 0.5
-  - **L2_LAMBDA**: 0.01
-  - **FROZEN_LAYERS**: []
-- **CNN0**:
-  - **LR**: 0.001
-  - **DROPOUT**: 0.35
-  - **L2_LAMBDA**: 0.0001
-  - **NODES_DENSE0**: 64
-  - **KERNEL_SIZE**: 3
-  - **STRIDES**: 1
-  - **MAXPOOL_SIZE**: 2
-  - **BLOCKS**: 4
-  - **INIT_FILTERS**: 32
-  - **FILTER_EXP_BASE**: 2
-- **CUSTOM_RESNETV2**:
-  - **LR**: 0.000046
-  - **DROPOUT0**: 0.45
-  - **DROPOUT1**: 0.40
-  - **STRIDE**S: 1
-  - **BLOCKS**: 2
-  - **INIT_FILTERS**: 16
-- **CUTOFFVGG16**:
-  - **LR_EXTRACT**: 0.0003
-  - **LR_FINETUNE**: 0.0000093
-  - **DROPOUT**: 0.45
-  - **CUTOFF_LAYER**: 10
-  - **FINETUNE_LAYER**: 7
-  - **EXTRACT_EPOCHS**: 6
+Each model type has a list of configurable hyperparameters defined here.
+- **MOBILENETV2**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+  - **NODES_DENSE0**
+  - **FROZEN_LAYERS**
+- **SHUFFLENETV2**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+- **VGG16**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+  - **NODES_DENSE0**
+  - **FROZEN_LAYERS**
+- **XCEPTION**
+  - **LR**
+  - **DROPOUT**
+  - **FROZEN_LAYERS**
+  - **L2_LAMBDA**
+- **BiTR50x1**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+- **EFFICIENTNETB7**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+  - **FROZEN_LAYERS**
+- **CNN0**
+  - **LR**
+  - **DROPOUT**
+  - **L2_LAMBDA**
+  - **NODES_DENSE0**
+  - **KERNEL_SIZE**
+  - **STRIDES**
+  - **MAXPOOL_SIZE**
+  - **BLOCKS**
+  - **INIT_FILTERS**
+  - **FILTER_EXP_BASE**
+- **CUSTOM_RESNETV2**
+  - **LR**
+  - **DROPOUT0**
+  - **DROPOUT1**
+  - **STRIDES**
+  - **BLOCKS**
+  - **INIT_FILTERS**
+- **CUTOFFVGG16**
+  - **LR_EXTRACT**
+  - **LR_FINETUNE**
+  - **DROPOUT**
+  - **CUTOFF_LAYER**
+  - **FINETUNE_LAYER**
+  - **EXTRACT_EPOCHS**
 </details>
 
 <details closed> 
-<summary>Hyper Parameter Search</summary>
+<summary>Hyperparameter Search</summary>
 
-- **MOBILENETV2**:
-  - **LR**:
-    - **TYPE**: 'float_log'
-    - **RANGE**: [0.00001, 0.001]
-  - **DROPOUT**:
-    - **TYPE**: 'float_uniform'
-    - **RANGE**: [0.0, 0.5]
-- **CUTOFFVGG16**:
-  - **LR_EXTRACT**:
-    - **TYP**E: 'float_log'
-    - **RANGE**: [0.00001, 0.001]
-  - **LR_FINETUNE**:
-    - **TYPE**: 'float_log'
-    - **RANGE**: [0.000001, 0.00001]
-  - **DROPOUT**:
-    - **TYPE**: 'float_uniform'
-    - **RANGE**: [0.0, 0.5]
-  - **EXTRACT_EPOCHS**:
-    - **TYPE**: 'int_uniform'
-    - **RANGE**: [2,10]
-- **CUSTOM_RESNETV2**:
-  - **LR**:
-    - **TYPE**: 'float_log'
-    - **RANGE**: [ 0.00001, 0.001 ]
-  - **DROPOUT0**:
-    - **TYPE**: 'float_uniform'
-    - **RANGE**: [ 0.0, 0.5 ]
-  - **DROPOUT1**:
-    - **TYPE**: 'float_uniform'
-    - **RANGE**: [ 0.2, 0.5 ]
-  - **BLOCKS**:
-    - **TYPE**: 'int_uniform'
-    - **RANGE**: [1, 3]
-  - **INIT_FILTERS**:
-    - **TYPE**: 'set'
-    - **RANGE**: [16, 32]
+
+For each model there is a range of values that can be sampled for the hyperparameter search.
+The ranges are defined here in the config file. Each hyperparameter has a name, type, and range.
+The type dictates how samples are drawn from the range.
+
+For more information on using bayesian hyperparameters, visit the [skopt documentation](https://scikit-optimize.github.io/stable/modules/generated/skopt.gp_minimize.html).
+- **MOBILENETV2**
+  - **LR**
+    - **TYPE**
+    - **RANGE**
+  - **DROPOUT**
+    - **TYPE**
+    - **RANGE**
+- **CUTOFFVGG16**
+  - **LR_EXTRACT**
+    - **TYPE**
+    - **RANGE**
+  - **LR_FINETUNE**
+    - **TYPE**
+    - **RANGE**
+  - **DROPOUT**
+    - **TYPE**
+    - **RANGE**
+  - **EXTRACT_EPOCHS**
+    - **TYPE**
+    - **RANGE**
+- **CUSTOM_RESNETV2**
+  - **LR**
+    - **TYPE**
+    - **RANGE**
+  - **DROPOUT0**
+    - **TYPE**
+    - **RANGE**
+  - **DROPOUT1**
+    - **TYPE**
+    - **RANGE**
+  - **BLOCKS**
+    - **TYPE**
+    - **RANGE**
+  - **INIT_FILTERS**
+    - **TYPE**
+    - **RANGE**
+
+
 </details>
 
 ## Project Structure
@@ -260,19 +278,16 @@ packages.
 |   ├── heatmaps                     <- Grad-CAM heatmap images
 |   └── readme                       <- Image assets for README.md
 ├── results
-│   ├── figures                      <- UPDATE ME
 │   └── logs                         <- TensorBoard logs
 ├── src
 │   ├── data
-|   |   ├── build-database.py        <- UPDATE ME!
-|   |   ├── batabase_pull.py         <- UPDATE ME!
-|   |   └── query_to_df.py           <- UPDATE ME!
+|   |   ├── build-dataset.py         <- Builds a table of frame examples using a table of clip metadata
+|   |   ├── database_pull.py         <- Script for pulling clip mp4 files from the cloud - step 2 (specific to our setup)
+|   |   └── query_to_df.py           <- Script for pulling clip metadata from the cloud - step 1 (specific to our setup)
 │   ├── explainability
 |   |   └── gradcam.py               <- Script containing gradcam application and heatmap generation
 │   ├── models                       
 |   |   └── models.py                <- Script containing all model definitions
-│   ├── notebooks
-|   |   └── .gitkeep                 <- UPDATE ME!
 |   ├── visualization                
 |   |   └── visualize.py             <- Script for visualization production
 |   ├── predict.py                   <- Script for prediction on raw data using trained models
@@ -286,18 +301,13 @@ packages.
 
 ## Contacts
 
-**Blake VanBerlo**  
-Title   
-Org  
-Email (waterloo email)
-
 **Robert Arntfield**  
-Title   
-Org  
-Email (lhsc email) 
+Project Lead  
+Deep Breathe  
+robert.arntfield@gmail.com
 
-**Derek Wu**  
-Title  
-Org  
-Email (lhsc email) 
+**Blake VanBerlo**  
+Deep Learning Project Lead   
+Deep Breathe  
+bvanberlo@uwaterloo.ca
 
