@@ -6,7 +6,8 @@ of automating the distinction between normal and abnormal lung tissue based of a
 
 
 This repository contains work relating to development and validation of an A-line vs. B-line
-ultrasound image classifier that was used for the creation of the paper [UPDATE PAPER TITLE](link-to-the-peper.com).
+ultrasound image classifier that was used for the creation of the paper
+_A deep learning solution for the classification of normal versus abnormal lung parenchyma on lung ultrasound: a multicentre study_ (a link will be added upon publication).
 
 ## Table of Contents
 1. [**_Getting Started_**](#getting-started)
@@ -47,7 +48,7 @@ ultrasound image classifier that was used for the creation of the paper [UPDATE 
    
 ## Building a Dataset
 
-All ultrasound clips were deconstructed into their constituent frames.  
+All ultrasound clips were deconstructed into their constituent frames.
 Following this, the frames were scrubbed of all on-screen information 
 (e.g. vendor logos, battery indicators, index mark, depth markers) 
 extraneous to the ultrasound beam itself.  This was done using a dedicated
@@ -70,43 +71,58 @@ that will be used to train a model.
 
 ### Train a Model
 
+With a pre-processed clip dataset, you can train a frame classification model of a chosen model definition.
 1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
    and set he appropriate data paths in [_config.yml_](config.yml).
 2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
-3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _single_train_.
+3. Set the desired data and train configuration fields in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _single_train_.
 4. Set the associated hyperparameter values based on the chosen model definition.
 5. Run [_train.py_](/src/train.py).
 6. View all logs and trained weights in the [_results_](/src/results) directory.
 
-Note: We found that the cutoffvgg16 had the best performance on our internal data.
+Note: We found that the _cutoffvgg16_ model definition had the best performance on our internal data.
 
 ### K-Fold Cross Validation
 
+With a pre-processed clip dataset, you can evaluate model performance using k-fold cross-validation.
 1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
    and set he appropriate data paths in [_config.yml_](config.yml).
 2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
-3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _cross_validation__.
+3. Set the desired data and train configuration fields in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _cross_validation_.
 4. Set the number of folds in the train section of [_config.yml_](config.yml).
 5. Set the associated hyperparameter values based on the chosen model definition.
 6. Run [_train.py_](/src/train.py).
 7. View all logs and trained weights in the [_results_](/src/results) directory. The partitions from each fold can be found in the [_partitions_](/src/results/data/partitions) folder.
 
 ### Hyper Parameter Optimization 
+
+With a pre-processed clip dataset, you can perform a hyperparameter search to assist with hyperparameter optimization.
 1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
    and set he appropriate data paths in [_config.yml_](config.yml).
 2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
-3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _hparam_search__.
+3. Set the desired data and train configuration field in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _hparam_search_.
 4. Set the hyperparameter search fields in the train section of [_config.yml_](config.yml).
 5. Set the associated hyperparameter search configuration values based on the chosen model definition.
 6. Run [_train.py_](/src/train.py).
 7. View all logs in the [_logs_](/results/logs) folder and view bayesian hyperparameter search reuslts in the [_experiments_](/results/experiments) folder.
 
 ### Predictions
-(frame preds, clip preds)
 
-### Grad-CAM for Individual Frame Predictions 
-1. Set the model to load parameter in [_config.yml_](config.yml) to point to a trained model.
-2. Set the frames table path as well as the frames path parameter to point to a directory of LUS frames .
+With a trained model, you can compute frame predictions and clip predictions using the following steps:
+1. Set the `MODEL_TO_LOAD` field in [_config.yml_](config.yml) to point to a trained model (in `.h5` format).
+2. Set the `FRAME_TABLE` and `CLIPS_TABLE` fields to the dataset of interest. Set the `FRAMES_PATH` field to point to the dataset's directory of LUS frames.
+3. Set the 'CLIP_ALGORITHM' field to determine which algorithm is used to compute clip-wise predictions, given the clip's set of frame predictions produced by the model. Below is a brief description of each algorithm available.
+   - **"contiguous"**: If the number of contiguous frames for which the frame's predicted B-line probability meets or exceeds the classification threshold is at least the contiguity threshold, classify the clip as "B-lines".
+    - **"average"**: Compute the average prediction probabilities across the entire clip. If the B-line average probability meets or exceeds the classification threshold, classify the clip as "B-lines".
+    - **"sliding_window"**: Take the clip's B-line probability as the greatest average B-line probability present in any contiguous set of frames as large as the sliding window.
+4. Execute [predict.py](/src/predict.py).
+5. Access the frame and corresponding clip predictions as CSV files, located in [results/predictions](/results/predictions/).
+
+### Grad-CAM for Individual Frame Predictions
+
+With a trained model and a collection of frame data, you can apply a Grad-CAM visualization to individual frames.
+1. Set the `MODEL_TO_LOAD` field in [_config.yml_](config.yml) to point to a trained model (in `.h5` format).
+2. Set the `FRAME_TABLE` field and set the `FRAMES` path field to point to a directory of LUS frames .
 3. Run [_gradcam.py_](/src/explainability/gradcam.py).
 4. Select the frame that you want to apply Grad-CAM to.
 5. View Grad-CAM results in the [_logs_](/img/heatmaps) folder.
@@ -135,8 +151,8 @@ This section of the config contains all path definitions for reading data and wr
 - **PARTITIONS**
 - **TEST_DF**
 - **EXT_VAL_CLIPS_TABLE**: Clip table in csv format for external dataset.
-- **EXT_VAL_FRAME_TABLE** Frame table in csv format for external dataset.
-- **EXT_VAL_FRAMES** Location of frame data in png format for external dataset.
+- **EXT_VAL_FRAME_TABLE**: Frame table in csv format for external dataset.
+- **EXT_VAL_FRAMES**: Location of frame data in png format for external dataset.
 - **HEATMAPS**
 - **LOGS**
 - **IMAGES**
@@ -180,6 +196,15 @@ This section of the config contains all path definitions for reading data and wr
 - **HPARAM_SEARCH**: 
   - **N_EVALS**: Number of iteration in the bayesian hyperparamter search.
   - **HPARAM_OBJECTIVE**: String identifier for the metric to be optimized by bayesian hyperparamter search.
+</details>
+
+<details closed> 
+<summary>Clip prediction</summary>
+
+- **ALGORITHM**: Choice of clip classification algorithm (one of "contiguous", "sliding_window" or "average")
+- **CLASSIFICATION_THRESHOLD**: Classification threshold applied for clip classification
+- **CONTIGUITY_THRESHOLD**: Number of contiguous frame predictions exceeding the classification threshold that constitute a clip-wise prediction for B-lines (for the "contiguous" algorithm)
+- **SLIDING_WINDOW**: Number of contiguous frames over which the average prediction is calculated (for the "sliding_window" algorithm)
 </details>
 
 <details closed> 
@@ -305,6 +330,12 @@ packages.
 |   ├── heatmaps                     <- Grad-CAM heatmap images
 |   └── readme                       <- Image assets for README.md
 ├── results
+|   ├── data                         
+|   |   └── partition                <- K-fold cross-validation fold partitions
+|   ├── experiments                  <- Experiment results
+|   ├── figures                      <- Generated figures
+|   ├── models                       <- Trained model output
+|   ├── predictions                  <- Prediction output
 │   └── logs                         <- TensorBoard logs
 ├── src
 │   ├── data
