@@ -97,7 +97,7 @@ def compute_metrics(cfg, labels, preds, probs=None):
     return metrics
 
 
-def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thresh=0.5, window_length=None):
+def compute_clip_predictions(cfg, frames_table_path, clips_table_path, class_thresh=0.5, clip_algorithm='contiguous', calculate_metrics=True):
     '''
     For a particular dataset, use predictions for each filename to create predictions for whole clips and save the
     resulting metrics.
@@ -105,7 +105,8 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
     :param frames_table_path: Path to CSV of Dataframe linking filenames to labels
     :param clips_table_path: Path to CSV of Dataframe linking clips to labels
     :param class_thresh: Classification threshold for frame prediction
-    :param window_length: Length of sliding window for average contiguous predictions
+    :param clip_algorithm: Choice of clip prediction algorithm (one of 'contiguous', 'average', 'sliding_window')
+    :param calculate_metrics: If True, calculate metrics for these predictions; if so, ensure you have a ground truth column
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
@@ -115,10 +116,10 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
     frames_df = pd.read_csv(frames_table_path)
     clips_df = pd.read_csv(clips_table_path)
 
-    clip_labels = clips_df['class']
     clip_names = clips_df['filename']
     clip_pred_classes = []
-    avg_pred_probs = np.zeros((clips_df.shape[0], len(cfg['DATA']['CLASSES'])))
+    all_pred_probs = np.zeros((clips_df.shape[0], len(cfg['DATA']['CLASSES'])))
+    print("Found {} clips. Determining clip predictions with {} algorithm.".format(len(clip_names), clip_algorithm))
     for i in range(len(clip_names)):
 
         # Get records from all files from this clip
@@ -129,37 +130,46 @@ def compute_metrics_by_clip(cfg, frames_table_path, clips_table_path, class_thre
         # Make predictions for each image
         pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=class_thresh)
 
-        # Compute average prediction probabilities for entire clip
-        if window_length:
-            avg_pred_prob = highest_avg_contiguous_pred_prob(pred_probs, ct=window_length)
+        # Compute average prediction for entire clip
+        if clip_algorithm == 'contiguous':
+            clip_pred_prob = predict_with_contiguity_threshold(pred_probs, cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD'], class_thresh)
+        elif clip_algorithm == 'sliding_window':
+            clip_pred_prob = highest_avg_contiguous_pred_prob(pred_probs, cfg['CLIP_PREDICTION']['SLIDING_WINDOW'])
+        elif clip_algorithm =='average':
+            clip_pred_prob = np.mean(pred_probs, axis=0)
         else:
-            avg_pred_prob = np.mean(pred_probs, axis=0)
-        avg_pred_probs[i] = avg_pred_prob
+            raise Exception('Unknown value for "clip_algorithm" argument.')
+        all_pred_probs[i] = clip_pred_prob
 
         # Record predicted class
-        clip_pred = (avg_pred_prob[CLASS_IDX_MAP['b_lines']] >= class_thresh).astype(int)
-        clip_pred_classes.append(clip_pred)
+        pred_class = (clip_pred_prob[CLASS_IDX_MAP['b_lines']] >= class_thresh).astype(int)
+        clip_pred_classes.append(pred_class)
 
-    metrics = compute_metrics(cfg, np.array(clip_labels), np.array(clip_pred_classes), avg_pred_probs)
-    print(metrics)
-    json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'clips_' + set_name +
-                             datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
+    if calculate_metrics:
+        clip_labels = clips_df['class']
+        if clip_algorithm != 'contiguous':
+            metrics = compute_metrics(cfg, np.array(clip_labels), np.array(clip_pred_classes), all_pred_probs)
+        else:
+            metrics = compute_metrics(cfg, np.array(clip_labels), np.array(clip_pred_classes))
+        json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'clips_' + set_name +
+                                 datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
 
     # Save predictions
-    avg_pred_probs_df = pd.DataFrame(avg_pred_probs, columns=cfg['DATA']['CLASSES'])
-    avg_pred_probs_df.insert(0, 'filename', clips_df['filename'])
-    avg_pred_probs_df.insert(1, 'class', clips_df['class'])
-    avg_pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
+    pred_probs_df = pd.DataFrame(all_pred_probs, columns=cfg['DATA']['CLASSES'])
+    pred_probs_df.insert(0, 'filename', clips_df['filename'])
+    pred_probs_df.insert(1, 'class', clips_df['class'])
+    pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
                              datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
-    return
+    return pred_probs_df
 
 
-def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
+def compute_frame_predictions(cfg, dataset_files_path, class_thresh=0.5, calculate_metrics=True):
     '''
     For a particular dataset, make predictions for each image and compute metrics. Save the resultant metrics.
     :param cfg: project config
     :param dataset_files_path: Path to CSV of Dataframe linking filenames to labels
     :param class_thresh: Classification threshold for frame prediction
+    :param calculate_metrics: If True, calculate metrics for these predictions; if so, ensure you have a ground truth column
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
@@ -167,15 +177,16 @@ def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
     set_name = dataset_files_path.split('/')[-1].split('.')[0] + '_frames'
 
     files_df = pd.read_csv(dataset_files_path)
-    frame_labels = files_df['Class']    # Get ground truth
 
     # Make predictions for each image
     pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, threshold=class_thresh)
 
     # Compute and save metrics
-    metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
-    json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' + set_name +
-                            datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
+    if calculate_metrics:
+        frame_labels = files_df['Class']  # Get ground truth
+        metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
+        json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' + set_name +
+                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
 
     # Save predictions
     pred_probs_df = pd.DataFrame(pred_probs, columns=cfg['DATA']['CLASSES'])
@@ -183,7 +194,7 @@ def compute_metrics_by_frame(cfg, dataset_files_path, class_thresh=0.5):
     pred_probs_df.insert(1, 'Class', files_df['Class'])
     pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
                           datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
-    return
+    return pred_probs_df
 
 
 def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, class_thresh=0.5, contiguous=True, document=False):
@@ -206,7 +217,7 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, clas
 
     if contiguous:
         n_b_lines_col = 'Contiguous Predicted B-lines'
-        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: max_contiguous_b_line_preds})
+        clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: max_contiguous_b_line_preds_from_series})
     else:
         n_b_lines_col = 'Total Predicted B-lines'
         clips_df = preds_df.groupby(CLIP).agg({CLASS_NUM: 'max', PRED_CLASS: 'sum'})
@@ -235,23 +246,42 @@ def b_line_threshold_experiment(frame_preds_path, min_b_lines, max_b_lines, clas
         plot_b_line_threshold_roc_curve(tprs, fprs)
     return metrics_df
 
-
-def max_contiguous_b_line_preds(pred_series):
+def max_contiguous_b_line_preds_from_series(pred_series):
     '''
-    Given a series of class predictions, determine the maximum number of contiguous B-line predictions
-    :param pred_series: Pandas series of frame-wise integer predictions
+    Given a Pandas series of class predictions, determine the maximum number of contiguous B-line predictions
+    :param preds: Numpy array of frame-wise integer predictions
     :return: Maximum contiguous B-line predictions in the series
     '''
     pred_arr = np.asarray(pred_series)
+    return max_contiguous_b_line_preds(pred_arr)
+
+def max_contiguous_b_line_preds(preds):
+    '''
+    Given a numpy array of class predictions, determine the maximum number of contiguous B-line predictions
+    :param preds: Numpy array of frame-wise integer predictions
+    :return: Maximum contiguous B-line predictions in the series
+    '''
     max_contiguous = cur_contiguous = 0
-    for i in range(pred_arr.shape[0]):
-        if pred_arr[i] == 1:
+    for i in range(preds.shape[0]):
+        if preds[i] == 1:
             cur_contiguous += 1
         else:
             cur_contiguous = 0
         if cur_contiguous > max_contiguous:
             max_contiguous = cur_contiguous
     return max_contiguous
+
+def predict_with_contiguity_threshold(pred_probs, contiguity_threshold, classification_threshold):
+    '''
+    Determine prediction probabilities using the contiguous frames method
+    :param pred_probs: Numpy array of prediction probabilities
+    :param contiguity_threshold: The contiguity threshold
+    :param classification_threshold: The classification threshold
+    '''
+    b_preds = (pred_probs[:,1] > classification_threshold).astype(int)
+    clip_pred = int(max_contiguous_b_line_preds(b_preds) >= contiguity_threshold)
+    return np.array([1 - clip_pred, clip_pred])
+
 
 
 def highest_avg_contiguous_pred_prob(pred_probs, window_length):
@@ -339,9 +369,10 @@ def clock_avg_runtime(n_gpu_warmup_runs, n_experiment_runs):
 
 if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-    frames_path = 'data/Ottawa/frames.csv' #'data/partitions/test_set_final.csv'
-    clips_path = 'data/Ottawa/clips_by_patient.csv' #cfg['PATHS']['EXT_VAL_CLIPS_TABLE']
-    #compute_metrics_by_clip(cfg, frames_path, clips_path, class_thresh=0.9, cont_thresh=None)
-    #compute_metrics_by_frame(cfg, frames_path, class_thresh=0.9)
+    frames_path = cfg['PATHS']['FRAME_TABLE']
+    clips_path = cfg['PATHS']['CLIPS_TABLE']
+    compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
+                             clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
+    compute_frame_predictions(cfg, frames_path, class_thresh=0.9, calculate_metrics=True)
     #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
-    sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)
+    #sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)

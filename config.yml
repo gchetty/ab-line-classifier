@@ -1,6 +1,6 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patient_cropped.csv'
-  FRAME_TABLE: 'data/frames_actually_cropped.csv'   # Path to all LUS frames in the dataset
+  FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
   FRAMES: 'B:/Datasets/Ottawa/pure_and_muggle/frames/'
@@ -48,6 +48,12 @@ TRAIN:
   HPARAM_SEARCH:
     N_EVALS: 10
     HPARAM_OBJECTIVE: 'auc'
+
+CLIP_PREDICTION:
+  ALGORITHM: 'average'       # One of "contiguous", "sliding_window" or "average"
+  CLASSIFICATION_THRESHOLD: 0.5
+  CONTIGUITY_THRESHOLD: 4
+  SLIDING_WINDOW: 4
 
 HPARAMS:
   MOBILENETV2:
