@@ -38,11 +38,10 @@ ultrasound image classifier that was used for the creation of the paper [UPDATE 
    EXPERIMENT_TYPE_ field is set to _'train_single'_.
 5. Execute [_train.py_](src/train.py) to train your chosen model on your
    preprocessed data. The trained model will be serialized within
-   _results/models/_, UPDATE PATH TO TRAINED MODEL and its filename will resemble the following
+   _results/models/_, and its filename will resemble the following
    structure: _model{yyyymmdd-hhmmss}.h5_, where _{yyyymmdd-hhmmss}_ is the current
    time.
-6. Navigate to _results/logs/_ to see the performance metrics
-   achieved by the model's forecast on the test set UPDATE?. The folder name will
+6. Navigate to _results/logs/_ to see the tensorboard log files. The folder name will
    be _{yyyymmdd-hhmmss}_.  These logs can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
    visualization of the training results.
    
@@ -69,21 +68,49 @@ that will be used to train a model.
    
 ## Use Cases
 
-### Train Single Experiment
+### Train a Model
+
+1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
+   and set he appropriate data paths in [_config.yml_](config.yml).
+2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
+3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _single_train_.
+4. Set the associated hyperparameter values based on the chosen model definition.
+5. Run [_train.py_](/src/train.py).
+6. View all logs and trained weights in the [_results_](/src/results) directory.
+
+Note: We found that the cutoffvgg16 had the best performance on our internal data.
 
 ### K-Fold Cross Validation
 
+1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
+   and set he appropriate data paths in [_config.yml_](config.yml).
+2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
+3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _cross_validation__.
+4. Set the number of folds in the train section of [_config.yml_](config.yml).
+5. Set the associated hyperparameter values based on the chosen model definition.
+6. Run [_train.py_](/src/train.py).
+7. View all logs and trained weights in the [_results_](/src/results) directory. The partitions from each fold can be found in the [_partitions_](/src/results/data/partitions) folder.
+
 ### Hyper Parameter Optimization 
-(in train.py)
+1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
+   and set he appropriate data paths in [_config.yml_](config.yml).
+2. Generate a frame dataset using [_build-dataset.py_](/src/data/build-dataset.py).
+3. Set the desired data and train configuration parameters in [_config.yml_](config.yml) including setting a model type in the model definition parameter and setting the experiment type to _hparam_search__.
+4. Set the hyperparameter search fields in the train section of [_config.yml_](config.yml).
+5. Set the associated hyperparameter search configuration values based on the chosen model definition.
+6. Run [_train.py_](/src/train.py).
+7. View all logs in the [_logs_](/results/logs) folder and view bayesian hyperparameter search reuslts in the [_experiments_](/results/experiments) folder.
 
 ### Predictions
 (frame preds, clip preds)
 
 ### Grad-CAM for Individual Frame Predictions 
-(run gradcam.py and pick frame)
+1. Set the model to load parameter in [_config.yml_](config.yml) to point to a trained model.
+2. Set the frames table path as well as the frames path parameter to point to a directory of LUS frames .
+3. Run [_gradcam.py_](/src/explainability/gradcam.py).
+4. Select the frame that you want to apply Grad-CAM to.
+5. View Grad-CAM results in the [_logs_](/img/heatmaps) folder.
 
-
-(mention the model we chose and the config key)
 
 ## Project Configuration
 This project contains several configurable variables that are defined in
@@ -102,19 +129,19 @@ below.
 This section of the config contains all path definitions for reading data and writing outputs.
 - **CLIPS_TABLE**: Clip table in csv format.
 - **FRAME_TABLE**: Frame table in csv format.
-- **DATABASE_QUERY** UPDATE
-- **RAW_CLIPS**: Location of raw clip data in UPDATE format.
-- **FRAMES**: Location of frame data in UPDATE format.
+- **DATABASE_QUERY**: Table containing LUS exam ID's(Unique to our setup.)
+- **RAW_CLIPS**: Location of raw clip data in mp4 format.
+- **FRAMES**: Location of frame data in png format.
 - **PARTITIONS**
 - **TEST_DF**
-- **EXT_VAL_CLIPS_TABLE** UPDATE?
-- **EXT_VAL_FRAME_TABLE**
-- **EXT_VAL_FRAMES**
+- **EXT_VAL_CLIPS_TABLE**: Clip table in csv format for external dataset.
+- **EXT_VAL_FRAME_TABLE** Frame table in csv format for external dataset.
+- **EXT_VAL_FRAMES** Location of frame data in png format for external dataset.
 - **HEATMAPS**
 - **LOGS**
 - **IMAGES**
 - **MODEL_WEIGHTS**
-- **MODEL_TO_LOAD**: Trained model in h5 file format. UPDATE
+- **MODEL_TO_LOAD**: Trained model in h5 file format.
 - **CLASS_NAME_MAP**: Output class indices in pkl format.
 - **BATCH_PREDS**
 - **METRICS**
@@ -150,9 +177,9 @@ This section of the config contains all path definitions for reading data and wr
   - **SHEAR_RANGE**
   - **ROTATION_RANGE**
   - **BRIGHTNESS_RANGE**
-- **HPARAM_SEARCH**: UPDATE
-  - **N_EVALS**: UPDATE
-  - **HPARAM_OBJECTIVE**: UPDATE
+- **HPARAM_SEARCH**: 
+  - **N_EVALS**: Number of iteration in the bayesian hyperparamter search.
+  - **HPARAM_OBJECTIVE**: String identifier for the metric to be optimized by bayesian hyperparamter search.
 </details>
 
 <details closed> 
