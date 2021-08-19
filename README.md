@@ -2,7 +2,7 @@
 ![Deep Breathe Logo](img/readme/deep-breathe-logo.jpg "Deep Breath AI")   
 
 We at [Deep Breathe](https://www.deepbreathe.ai/) sought to train a deep learning model for the task
-of automating the distinction between normal and abnormal lung tissue based of a lung ultrasound.
+of automating the distinction between normal and abnormal lung tissue on lung ultrasound.
 
 
 This repository contains work relating to development and validation of an A-line vs. B-line
