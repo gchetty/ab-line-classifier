@@ -1,9 +1,14 @@
 # LOCAL ARTIFACTS ********************************************************************
-data/
+*.csv
+data/partitions/*
+data/serializations/*
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
-results/
-!results/figures/.gitkeep
+results/logs/*
+results/models/*
+results/experiments/*
+results/metrics/*
+results/predictions/*
 !results/logs/.gitkeep
 !results/models/.gitkeep
 !results/experiments/.gitkeep
