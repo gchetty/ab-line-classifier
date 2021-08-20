@@ -73,7 +73,7 @@ that will be used to train a model.
 ### Train a Model
 
 With a pre-processed clip dataset, you can train a frame classification model of a chosen model definition.
-1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) and set he appropriate data paths in [_config.yml_](config.yml). 
+1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) and set the appropriate data paths in [_config.yml_](config.yml). 
 2. Mask the images of extraneous information outside the ultrasound beam. In our group, this was done with proprietary software mentioned above in 'Building a Dataset'
 3. Generate a frame dataset from the masked clips using [_build-dataset.py_](/src/data/build-dataset.py).
 4. Set the desired data and train configuration fields in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _single_train_.
@@ -87,7 +87,7 @@ Note: We found that the _cutoffvgg16_ model definition had the best performance 
 
 With a pre-processed clip dataset, you can evaluate model performance using k-fold cross-validation.
 1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
-   and set he appropriate data paths in [_config.yml_](config.yml).
+   and set the appropriate data paths in [_config.yml_](config.yml).
 2. Generate a frame from the masked clips using [_build-dataset.py_](/src/data/build-dataset.py).
 3. Set the desired data and train configuration fields in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _cross_validation_.
 4. Set the number of folds in the train section of [_config.yml_](config.yml).
@@ -99,7 +99,7 @@ With a pre-processed clip dataset, you can evaluate model performance using k-fo
 
 With a pre-processed clip dataset, you can perform a hyperparameter search to assist with hyperparameter optimization.
 1. Assemble in a pre-processed clip dataset (see [**_Building a Dataset_**](#building-a-dataset)) 
-   and set he appropriate data paths in [_config.yml_](config.yml).
+   and set the appropriate data paths in [_config.yml_](config.yml).
 2. Generate a frame dataset from the masked clips using [_build-dataset.py_](/src/data/build-dataset.py).
 3. Set the desired data and train configuration field in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _hparam_search_.
 4. Set the hyperparameter search fields in the train section of [_config.yml_](config.yml).

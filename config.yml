@@ -3,6 +3,7 @@ PATHS:
   FRAME_TABLE: 'data/frames_actually_cropped.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
+  MASKED_CLIPS: 'data/masked_clips/'
   FRAMES: 'B:/Datasets/Ottawa/pure_and_muggle/frames/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
