@@ -1,4 +1,4 @@
-# ab-line-classifer
+# A-lines/B-lines Lung Ultrasound Classifier
 ![Deep Breathe Logo](img/readme/deep-breathe-logo.jpg "Deep Breath AI")   
 
 We at [Deep Breathe](https://www.deepbreathe.ai/) sought to train a deep learning model for the task
