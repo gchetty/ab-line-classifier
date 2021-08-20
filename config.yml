@@ -3,6 +3,7 @@ PATHS:
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
+  MASKED_CLIPS: 'data/masked_clips/'
   FRAMES: 'B:/Datasets/Ottawa/pure_and_muggle/frames/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
@@ -33,8 +34,6 @@ TRAIN:
   BATCH_SIZE: 256
   EPOCHS: 15
   PATIENCE: 15
-  METRIC_PREFERENCE: ['auc', 'recall', 'precision', 'loss']
-  NUM_GPUS: 1
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 10
   DATA_AUG:
