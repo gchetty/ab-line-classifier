@@ -79,7 +79,7 @@ With a pre-processed clip dataset, you can train a frame classification model of
 4. Set the desired data and train configuration fields in [_config.yml_](config.yml) including setting a model type using the `MODEL_DEF` parameter and setting the `EXPERIMENT_TYPE` to _single_train_.
 5. Set the associated hyperparameter values based on the chosen model definition.
 6. Run [_train.py_](/src/train.py).
-7. View all logs and trained weights in the [_results_](/src/results) directory.
+7. View all logs and trained weights in the [_results_](/results) directory.
 
 Note: We found that the _cutoffvgg16_ model definition had the best performance on our internal data.
 
@@ -93,7 +93,7 @@ With a pre-processed clip dataset, you can evaluate model performance using k-fo
 4. Set the number of folds in the train section of [_config.yml_](config.yml).
 5. Set the associated hyperparameter values based on the chosen model definition.
 6. Run [_train.py_](/src/train.py).
-7. View all logs and trained weights in the [_results_](/src/results) directory. The partitions from each fold can be found in the [_partitions_](/src/results/data/partitions) folder.
+7. View all logs and trained weights in the [_results_](/results) directory. The partitions from each fold can be found in the [_partitions_](/src/results/data/partitions) folder.
 
 ### Hyper Parameter Optimization 
 
@@ -105,7 +105,7 @@ With a pre-processed clip dataset, you can perform a hyperparameter search to as
 4. Set the hyperparameter search fields in the train section of [_config.yml_](config.yml).
 5. Set the associated hyperparameter search configuration values based on the chosen model definition.
 6. Run [_train.py_](/src/train.py).
-7. View all logs in the [_logs_](/results/logs) folder and view bayesian hyperparameter search reuslts in the [_experiments_](/results/experiments) folder.
+7. View all logs in the [_logs_](/results/logs) folder and view bayesian hyperparameter search results in the [_experiments_](/results/experiments) folder.
 
 ### Predictions
 
@@ -185,7 +185,7 @@ This section of the config contains all path definitions for reading data and wr
 - **BATCH_SIZE**: Batch size.
 - **EPOCHS**: Number of epocs.
 - **PATIENCE**: Number of epochs with no improvement after which training will be stopped.
-- **MIXED_PRECISION** Toggle mixed percision training. Necessary for training with Tensor Cores.
+- **MIXED_PRECISION** Toggle mixed precision training. Necessary for training with Tensor Cores.
 - **N_FOLDS**: Cross-validation folds.
 - **DATA_AUG**: Data augmentation parameters.
   - **ZOOM_RANGE**
