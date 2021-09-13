@@ -26,8 +26,8 @@ _A deep learning solution for the classification of normal versus abnormal lung 
 1. Clone this repository (for help see this
    [tutorial](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository)).
 2. Install the necessary dependencies (listed in
-   [requirements.txt](requirements.txt)). To do this, open a terminal in
-   the root directory of the project and run the following:
+   [requirements.txt](requirements.txt)) and ensure that your python version is 3.8.
+   To do this, open a terminal in the root directory of the project and run the following:
    ```
    $ pip install -r requirements.txt
    ```
@@ -41,7 +41,8 @@ _A deep learning solution for the classification of normal versus abnormal lung 
    preprocessed data. The trained model will be serialized within
    _results/models/_, and its filename will resemble the following
    structure: _model{yyyymmdd-hhmmss}.h5_, where _{yyyymmdd-hhmmss}_ is the current
-   time.
+   time.  
+   Note: When [_train.py_](src/train.py) is executed, the project root should be the working directory.
 6. Navigate to _results/logs/_ to see the tensorboard log files. The folder name will
    be _{yyyymmdd-hhmmss}_.  These logs can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
    visualization of the training results.
@@ -187,6 +188,7 @@ This section of the config contains all path definitions for reading data and wr
 - **PATIENCE**: Number of epochs with no improvement after which training will be stopped.
 - **MIXED_PRECISION** Toggle mixed precision training. Necessary for training with Tensor Cores.
 - **N_FOLDS**: Cross-validation folds.
+- **MEMORY_LIMIT**: Max memory, in MB, for the virtual device configuration used for training.
 - **DATA_AUG**: Data augmentation parameters.
   - **ZOOM_RANGE**
   - **HORIZONTAL_FLIP**
