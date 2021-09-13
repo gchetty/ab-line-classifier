@@ -255,7 +255,7 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     if gpus:
         for gpu in gpus:
             tf.config.experimental.set_virtual_device_configuration(gpu, [
-                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=10240)])
+                tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
     train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'])
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
