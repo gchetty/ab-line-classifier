@@ -112,8 +112,8 @@ With a pre-processed clip dataset, you can perform a hyperparameter search to as
 
 With a trained model, you can compute frame predictions and clip predictions using the following steps:
 1. Set the `MODEL_TO_LOAD` field in [_config.yml_](config.yml) to point to a trained model (in `.h5` format).
-2. Set the `FRAME_TABLE` and `CLIPS_TABLE` fields to the dataset of interest. Set the `FRAMES_PATH` field to point to the dataset's directory of LUS frames.
-3. Set the 'CLIP_ALGORITHM' field to determine which algorithm is used to compute clip-wise predictions, given the clip's set of frame predictions produced by the model. Below is a brief description of each algorithm available.
+2. Set the `FRAME_TABLE` and `CLIPS_TABLE` fields to the dataset of interest. Set the `FRAMES` field to point to the dataset's directory of LUS frames.
+3. Set the `CLIP_PREDICTION` > `ALGORITHM` field to determine which algorithm is used to compute clip-wise predictions, given the clip's set of frame predictions produced by the model. Below is a brief description of each algorithm available.
    - **"contiguous"**: If the number of contiguous frames for which the frame's predicted B-line probability meets or exceeds the classification threshold is at least the contiguity threshold, classify the clip as "B-lines".
     - **"average"**: Compute the average prediction probabilities across the entire clip. If the B-line average probability meets or exceeds the classification threshold, classify the clip as "B-lines".
     - **"sliding_window"**: Take the clip's B-line probability as the greatest average B-line probability present in any contiguous set of frames as large as the sliding window.
@@ -127,7 +127,7 @@ With a trained model and a collection of frame data, you can apply a Grad-CAM vi
 2. Set the `FRAME_TABLE` field and set the `FRAMES` path field to point to a directory of LUS frames .
 3. Run [_gradcam.py_](/src/explainability/gradcam.py).
 4. Select the frame that you want to apply Grad-CAM to.
-5. View Grad-CAM results in the [_logs_](/img/heatmaps) folder.
+5. View Grad-CAM results in the [_img/heatmaps_](/img/heatmaps) folder.
 
 
 ## Project Configuration
