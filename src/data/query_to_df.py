@@ -25,7 +25,7 @@ def create_ABline_dataframe(database_query):
     df = df[df.a_or_b_lines.notnull()]
 
     # Create filename
-    df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_" + df["vid_id"]
+    df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_VID" + df["vid_id"].map(str)
 
     # Create column of class category to each clip. 
     # Modifiable for binary or multi-class labelling
