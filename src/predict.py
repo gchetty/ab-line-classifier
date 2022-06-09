@@ -8,6 +8,8 @@ import pandas as pd
 from sklearn.metrics import *
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import onnx
+from onnx_tf.backend import prepare
 
 from src.visualization.visualization import *
 from src.models.models import get_model
@@ -29,6 +31,21 @@ SLIDING_WINDOW = 'Sliding Window Length'
 # Class map
 CLASS_IDX_MAP = dill.load(open(cfg['PATHS']['CLASS_NAME_MAP'], 'rb'))
 IDX_CLASS_MAP = {v: k for k, v in CLASS_IDX_MAP.items()}  # Reverse the map
+
+
+def restore_model(model_path):
+    '''
+    Restores the model from serialized weights
+    param model_path: Path at which weights are stored
+    return: keras Model object
+    '''
+    # Restore the model from serialized weights
+    model_ext = os.path.splitext(model_path)[1]
+    if model_ext == '.onnx':
+        model = prepare(onnx.load(model_path))
+    else:
+        model = load_model(model_path, compile=False)
+    return model
 
 
 def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
@@ -354,7 +371,9 @@ def clock_avg_runtime(n_gpu_warmup_runs, n_experiment_runs):
     '''
     times = np.zeros((n_experiment_runs))
     img_dim = cfg['DATA']['IMG_DIM']
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
+
     for i in range(n_gpu_warmup_runs):
         x = tf.random.normal((1, img_dim[0], img_dim[1], 3))
         y = model(x)

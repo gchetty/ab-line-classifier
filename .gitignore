@@ -9,6 +9,7 @@ results/models/*
 results/experiments/*
 results/metrics/*
 results/predictions/*
+results/figures/*
 !results/logs/.gitkeep
 !results/models/.gitkeep
 !results/experiments/.gitkeep

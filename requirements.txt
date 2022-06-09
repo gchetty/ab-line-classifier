@@ -11,3 +11,5 @@ scikit-learn==0.24.1
 scikit-optimize==0.8.1
 dill==0.3.3
 pillow==8.3.2
+onnx==1.11.0
+onnx-tf==1.10.0
