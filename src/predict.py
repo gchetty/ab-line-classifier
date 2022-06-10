@@ -127,7 +127,7 @@ def compute_clip_predictions(cfg, frames_table_path, clips_table_path, class_thr
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
     set_name = frames_table_path.split('/')[-1].split('.')[0] + '_clips'
 
     frames_df = pd.read_csv(frames_table_path)
@@ -190,7 +190,7 @@ def compute_frame_predictions(cfg, dataset_files_path, class_thresh=0.5, calcula
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
     set_name = dataset_files_path.split('/')[-1].split('.')[0] + '_frames'
 
     files_df = pd.read_csv(dataset_files_path)
