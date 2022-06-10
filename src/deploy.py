@@ -12,7 +12,7 @@ from onnx_tf.backend import prepare
 
 from tensorflow.keras.models import load_model
 
-def AB_classifier_preprocess(image):
+def AB_classifier_preprocess(image, preprocessing_fn):
     '''
     Given a masked ultrasound image, execute preprocessing steps specific to the AB classifier. Specifically, the image
     is resized to (128, 128) and zero-centered with respect to the ImageNet dataset. The result is an image that is
@@ -29,7 +29,7 @@ def AB_classifier_preprocess(image):
     resized_image = resized_image.reshape((1, INPUT_SIZE[0], INPUT_SIZE[1], N_CHANNELS))
 
     # Apply scaling function
-    preprocessed_image = vgg16_preprocess(resized_image)
+    preprocessed_image = preprocessing_fn(resized_image)
     return preprocessed_image
 
 def view_classifier_preprocess(image):
@@ -91,7 +91,7 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
             break
         #frame[0:frame.shape[0]//8,:] = 0.
         frame = np.expand_dims(frame, axis=0)
-        preprocessed_frame = AB_classifier_preprocess(frame)
+        preprocessed_frame = AB_classifier_preprocess(frame, vgg16_preprocess)
         if model_ext == '.onnx':
             pred = model.run(preprocessed_frame).output
         else:
