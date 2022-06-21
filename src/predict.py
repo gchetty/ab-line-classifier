@@ -316,6 +316,59 @@ def predict_with_contiguity_threshold(pred_probs, contiguity_threshold, classifi
     clip_pred = int(max_contiguous_b_line_preds(b_preds) >= contiguity_threshold)
     return np.array([1 - clip_pred, clip_pred])
 
+def predict_with_contiguity_threshold_wb(preds, target_class, contiguity_threshold, classification_threshold):
+    '''
+    Determine prediction probabilities using the contiguous frames method (from WaveBase output)
+    :param preds: Pandas array of prediction probabilities
+    :param target_class: Target class for prediction
+    :param contiguity_threshold: The contiguity threshold
+    :param classification_threshold: The classification threshold
+    '''
+    cur_contiguous = 0
+    for i in range(preds.shape[0]):
+        if preds.loc[i, 0] == target_class and float(preds.loc[i, 1]) > classification_threshold:
+            cur_contiguous += 1
+        else:
+            cur_contiguous = 0
+        if cur_contiguous >= contiguity_threshold:
+            return True
+    return False
+
+def compute_clip_predictions_wb(cfg):
+    '''
+    Loads the frame-wise prediction csvs exported from the WaveBase device and creates clip-wise predictions using the contiguous frames method
+    :param cfg: project config
+    '''
+    # Point to acquired data
+    rootdir = cfg['PATHS']['RT_ROOT_DIR']
+    dated_dirs = next(os.walk(rootdir))[1]
+    recording_dir = 'recordings'
+
+    res = []
+    # Loop over all directories containing csvs
+    for dated_dir in dated_dirs:
+        for root, dir, files in os.walk(os.path.join(rootdir, dated_dir, recording_dir)):
+            # Keep only predicted probs csvs
+            csvs = [file for file in files if ".csv" in file]
+            for csv in csvs:
+                clip_name = str.replace(csv, "_probs.csv", ".mkv")
+                fname = os.path.join(root, csv)
+                data = pd.read_csv(fname, delimiter=',', header=None, dtype=str)
+                res.append([clip_name,
+                            'B-Line'
+                            if predict_with_contiguity_threshold_wb(data,
+                                                                    'B-Lines',
+                                                                    cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD'],
+                                                                    cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'])
+                            else 'A-Line'])
+
+    res_df = pd.DataFrame(res, columns=['filename', 'prediction'])
+    res_file_name = 'results/predictions/'+ rootdir.split('/')[1] + '_clip_predictions_T' \
+                    + str(cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD']) + '_t0' \
+                    + str(cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'])[2] \
+                    + '_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv'
+    res_df.to_csv(res_file_name, index=False)
+    return res_df
 
 
 def highest_avg_contiguous_pred_prob(pred_probs, window_length):
@@ -407,8 +460,9 @@ if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
     frames_path = cfg['PATHS']['FRAME_TABLE']
     clips_path = cfg['PATHS']['CLIPS_TABLE']
-    compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
-                             clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
-    compute_frame_predictions(cfg, frames_path, class_thresh=0.9, calculate_metrics=True)
+    # compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
+    #                          clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
+    # compute_frame_predictions(cfg, frames_path, class_thresh=0.9, calculate_metrics=True)
     #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
     #sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)
+    compute_clip_predictions_wb(cfg, target_class='B-Lines')
