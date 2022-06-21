@@ -28,7 +28,7 @@ def get_rt_masked_clip_paths():
             # Keep only predicted probs csvs
             clips = [file for file in files]
             for clip in clips:
-                path_name = rootdir + dated_dir + clip
+                path_name = rootdir + dated_dir + '/' + clips_dir + '/' + clip
                 data.append([int(clip.split('.')[0]), path_name])
 
     path_df = pd.DataFrame(data, columns=['filename', 'Path'])
