@@ -1,5 +1,5 @@
 PATHS:
-  CLIPS_TABLE: 'data/clips_by_patient_cropped.csv'
+  CLIPS_TABLE: 'data/rt_clips.csv'
   FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
@@ -20,12 +20,15 @@ PATHS:
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments/'
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
+  RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
+  RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
 
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
+  RT_B_LINES_3_CLASS: 'b_lines'
 
 TRAIN:
   MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}

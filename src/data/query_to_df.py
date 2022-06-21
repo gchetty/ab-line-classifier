@@ -7,6 +7,66 @@ cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 COLUMNS_WANTED = ['patient_id', 'a_or_b_lines']
 
 database_query = cfg['PATHS']['DATABASE_QUERY']
+lb_annot = cfg['PATHS']['RT_LABELBOX_ANNOTATIONS']
+b_lines_3_class = cfg['DATA']['RT_B_LINES_3_CLASS']
+
+
+def get_rt_masked_clip_paths():
+    '''
+    Combines paths to all real-time validation masked clips into a single dataframe
+    '''
+
+    # Point to acquired data
+    rootdir = cfg['PATHS']['RT_ROOT_DIR']
+    dated_dirs = next(os.walk(rootdir))[1]
+    clips_dir = 'masked_recordings'
+    data = []
+
+    # Loop over all directories containing csvs
+    for dated_dir in dated_dirs:
+        for root, dir, files in os.walk(os.path.join(rootdir, dated_dir, clips_dir)):
+            # Keep only predicted probs csvs
+            clips = [file for file in files]
+            for clip in clips:
+                path_name = rootdir + dated_dir + clip
+                data.append([int(clip.split('.')[0]), path_name])
+
+    path_df = pd.DataFrame(data, columns=['filename', 'Path'])
+
+    return path_df
+
+
+def create_rt_ABline_dataframe(lb_annot,b_lines_3_class):
+    '''
+    Extracts pertinent information from pre-processed Labelbox expert annotations and builds a dataframe linking clips, class, and their path
+
+    :param lb_annot: path to pre-processed Labelbox annotations
+    :param b_lines_3_class: class label of < 3 B line clips ('a_lines' or 'b_lines')
+    '''
+
+    df = pd.read_csv(lb_annot)
+
+    b_lines_3_dict = {'b_lines': 1, 'a_lines': 0}
+
+    # Create column of class category to each clip.
+    # Modifiable for binary or multi-class labelling
+    df['class'] = df.apply(lambda row: 0 if row.a_or_b_lines == 'a_lines' else
+                           (b_lines_3_dict[b_lines_3_class] if row.a_or_b_lines == 'b_lines_3' else
+                            (1 if row.a_or_b_lines == 'b_lines_moderate_50_pleural_line' else
+                             (1 if row.a_or_b_lines == 'b_lines_severe_50_pleural_line' else
+                               0 if row.a_or_b_lines == 'non_a_non_b' else
+                                -1))), axis=1)
+
+    # Relabel all b-line severities as a single class for A- vs. B-line classifier
+    df['a_or_b_lines'] = df['a_or_b_lines'].replace(
+        {'b_lines_3': b_lines_3_class, 'b_lines_moderate_50_pleural_line': 'b_lines',
+         'b_lines_severe_50_pleural_line': 'b_lines'})
+
+    # Add path to masked clips
+    path_df = get_rt_masked_clip_paths()
+    df = df.merge(path_df, how='outer', on='filename')
+    return df
+
 
 def create_ABline_dataframe(database_query):
     '''
@@ -51,7 +111,7 @@ def create_ABline_dataframe(database_query):
 
     return df
 
-#print(create_ABline_dataframe("parenchymal_clips.csv"))
 
 if __name__ == "__main__":
-    create_ABline_dataframe(database_query)
+    create_rt_ABline_dataframe(lb_annot, b_lines_3_class)
+    #create_ABline_dataframe(database_query)
