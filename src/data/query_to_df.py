@@ -36,15 +36,24 @@ def get_rt_masked_clip_paths():
     return path_df
 
 
-def create_rt_ABline_dataframe(lb_annot,b_lines_3_class):
+def create_rt_ABline_dataframe(lb_annot,b_lines_3_class, preprocessed=False):
     '''
-    Extracts pertinent information from pre-processed Labelbox expert annotations and builds a dataframe linking clips, class, and their path
+    Extracts pertinent information from Labelbox expert annotations and builds a dataframe linking clips, class, and their path
 
-    :param lb_annot: path to pre-processed Labelbox annotations
+    :param lb_annot: path to Labelbox annotations
     :param b_lines_3_class: class label of < 3 B line clips ('a_lines' or 'b_lines')
+    :param preprocessed: whether the Labelbox annotations have already been pre-processed
+                         If True, lb_annot is a path to a csv with two columns 'filename' and 'a_or_b_lines'.
+                         The former contains integer video IDs, the latter contains annotation labels (non-binary).
+                         If False, lb_annot is a path to the raw Labelbox output, stored as an Excel workbook
     '''
 
-    df = pd.read_csv(lb_annot)
+    if not preprocessed:
+        df = pd.read_excel(lb_annot)
+        df['filename'] = df.apply(lambda row: int(row['External ID'][:10]), axis=1)
+        df = df[['filename', 'a_or_b_lines']]
+    else:
+        df = pd.read_csv(lb_annot)
 
     b_lines_3_dict = {'b_lines': 1, 'a_lines': 0}
 
