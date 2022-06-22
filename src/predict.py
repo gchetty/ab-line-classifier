@@ -18,9 +18,6 @@ from src.deploy import AB_classifier_preprocess
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
-# for device in tf.config.experimental.list_physical_devices("GPU"):
-#     tf.config.experimental.set_memory_growth(device, True)
-
 # Repeated column names
 B_LINE_THRESHOLD = 'B-line Threshold'
 PRED_CLASS = 'Pred Class'
@@ -316,7 +313,7 @@ def predict_with_contiguity_threshold(pred_probs, contiguity_threshold, classifi
     clip_pred = int(max_contiguous_b_line_preds(b_preds) >= contiguity_threshold)
     return np.array([1 - clip_pred, clip_pred])
 
-def predict_with_contiguity_threshold_wb(preds, target_class, contiguity_threshold, classification_threshold):
+def predict_clipwise_with_contiguity_threshold_wb(preds, target_class, contiguity_threshold, classification_threshold):
     '''
     Determine prediction probabilities using the contiguous frames method (from WaveBase output)
     :param preds: Pandas array of prediction probabilities
@@ -356,7 +353,7 @@ def compute_clip_predictions_wb(cfg):
                 data = pd.read_csv(fname, delimiter=',', header=None, dtype=str)
                 res.append([clip_name,
                             'B-Line'
-                            if predict_with_contiguity_threshold_wb(data,
+                            if predict_clipwise_with_contiguity_threshold_wb(data,
                                                                     'B-Lines',
                                                                     cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD'],
                                                                     cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'])
