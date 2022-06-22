@@ -353,6 +353,7 @@ packages.
 |   ├── visualization                
 |   |   └── visualize.py             <- Script for visualization production
 |   ├── predict.py                   <- Script for prediction on raw data using trained models
+|   ├── deploy.py                    <- Script for confirming preprocessing for inference on the WaveBase device  
 |   └── train.py                     <- Script for training experiments
 |
 ├── .gitignore                       <- Files to be be ignored by git.
