@@ -24,8 +24,8 @@ def data_pull():
     for link in tqdm(links):
         print(link)
         firstpos = link.rfind("/")
-        lastpos = len(link)
-        filename = link[firstpos+1:lastpos]
+        lastpos = link.rfind("-")
+        filename = link[firstpos+1:lastpos] + '.mp4'
 
         wget.download(link, output_folder + filename)
 
