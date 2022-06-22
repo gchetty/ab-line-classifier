@@ -32,49 +32,6 @@ def AB_classifier_preprocess(image, preprocessing_fn):
     preprocessed_image = preprocessing_fn(resized_image)
     return preprocessed_image
 
-def view_classifier_preprocess(image):
-    '''
-    Given a masked ultrasound image, execute preprocessing steps specific to the view classifier. Specifically, the
-    image is resized to (128, 128) and zero-centered with respect to the ImageNet dataset. The result is an image that
-    is ready for the forward pass of the COVID-19 classifier.
-    :image (np.array): A masked image with shape (1, H, W, 3)
-    :return (np.array): Preprocessed image with shape (1, 128, 128, 3)
-    '''
-
-    N_CHANNELS = 3
-    INPUT_SIZE = (128, 128)
-
-    # Resize image
-    resized_image = cv2.resize(image[0], INPUT_SIZE, interpolation=cv2.INTER_LINEAR)
-    resized_image = resized_image.reshape((1, INPUT_SIZE[0], INPUT_SIZE[1], N_CHANNELS))
-
-    # Apply scaling function
-    preprocessed_image = resnet_50v2_preprocess(resized_image)
-    return preprocessed_image
-
-def covid_classifier_preprocess(image):
-    '''
-    Given a masked ultrasound image, execute preprocessing steps specific to the COVID-19 classifier. Specifically, the image
-    is resized to (600, 600) and scaled to [-1, 1]. Then it is 0-centered and subsequently divided by its standard
-    deviation.
-    :image (np.array): A masked image with shape (1, H, W, 3)
-    :return (np.array): Preprocessed image with shape (1, 128, 128, 3)
-    '''
-
-    N_CHANNELS = 3
-    INPUT_SIZE = (600, 600)
-
-    # Resize image
-    resized_image = cv2.resize(image[0], INPUT_SIZE, interpolation=cv2.INTER_LINEAR)
-    resized_image = resized_image.reshape((1, INPUT_SIZE[0], INPUT_SIZE[1], N_CHANNELS))
-
-    # Apply scaling function
-    preprocessed_image = xception_preprocess(resized_image)
-
-    # As in keras ImageDataGenerator, set samplewise mean to 0 and divide by standard deviation
-    preprocessed_image -= np.mean(preprocessed_image, keepdims=True)
-    preprocessed_image /= (np.std(preprocessed_image, keepdims=True) + 1e-6)
-    return preprocessed_image
 
 def predict_wavebase_mp4(model_path, mp4_path, preds_path):
 
@@ -102,9 +59,9 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
     pred_df.to_csv(preds_path, index=False)
     return preds
 
-#model_path = 'results/models/cutoffvgg16_final_cropped.h5'
-model_path = 'results/models/ab_model_not_compiled/AB_classifier.onnx'
-mp4_path = 'C:/Users/Blake/Downloads/AB_test/demo.mp4'
-preds_path = 'C:/Users/Blake/Downloads/AB_test/demo.csv'
-preds = predict_wavebase_mp4(model_path, mp4_path, preds_path)
+# model_path = 'results/models/cutoffvgg16_final_cropped.h5'
+# model_path = 'results/models/ab_model_not_compiled/AB_classifier.onnx'
+# mp4_path = 'C:/Users/Blake/Downloads/AB_test/demo.mp4'
+# preds_path = 'C:/Users/Blake/Downloads/AB_test/demo.csv'
+# preds = predict_wavebase_mp4(model_path, mp4_path, preds_path)
 
