@@ -33,10 +33,16 @@ def AB_classifier_preprocess(image, preprocessing_fn):
     return preprocessed_image
 
 
-def predict_wavebase_mp4(model_path, mp4_path, preds_path):
-
+def predict_framewise(model_path, vid_path, preds_path):
+    '''
+    Computes frame-wise predictions for a given clip loaded directly from storage
+    :param model_path: path to model to make predictions with
+    :param vid_path: path to clip to make frame-wise predictions for (any video file format supported by OpenCV)
+    :param preds_path: path to save the frame-wise predictions to
+    :return: np array of the computed frame-wise predictions
+    '''
     model_ext = os.path.splitext(model_path)[1]
-    vc = cv2.VideoCapture(mp4_path)
+    vc = cv2.VideoCapture(vid_path)
     if model_ext == '.onnx':
         model = prepare(onnx.load(model_path))
     else:
@@ -46,7 +52,6 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
         ret, frame = vc.read()
         if not ret:
             break
-        #frame[0:frame.shape[0]//8,:] = 0.
         frame = np.expand_dims(frame, axis=0)
         preprocessed_frame = AB_classifier_preprocess(frame, vgg16_preprocess)
         if model_ext == '.onnx':
@@ -63,5 +68,5 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
 # model_path = 'results/models/ab_model_not_compiled/AB_classifier.onnx'
 # mp4_path = 'C:/Users/Blake/Downloads/AB_test/demo.mp4'
 # preds_path = 'C:/Users/Blake/Downloads/AB_test/demo.csv'
-# preds = predict_wavebase_mp4(model_path, mp4_path, preds_path)
+# preds = predict_framewise(model_path, vid_path, preds_path)
 
