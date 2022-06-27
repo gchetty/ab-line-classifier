@@ -8,14 +8,15 @@ import pandas as pd
 from sklearn.metrics import *
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import onnx
+import cv2
+from onnx_tf.backend import prepare
 
 from src.visualization.visualization import *
 from src.models.models import get_model
+from src.deploy import AB_classifier_preprocess
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
-
-for device in tf.config.experimental.list_physical_devices("GPU"):
-    tf.config.experimental.set_memory_growth(device, True)
 
 # Repeated column names
 B_LINE_THRESHOLD = 'B-line Threshold'
@@ -30,30 +31,60 @@ SLIDING_WINDOW = 'Sliding Window Length'
 CLASS_IDX_MAP = dill.load(open(cfg['PATHS']['CLASS_NAME_MAP'], 'rb'))
 IDX_CLASS_MAP = {v: k for k, v in CLASS_IDX_MAP.items()}  # Reverse the map
 
+# MODEL FORMAT
+model_ext = os.path.splitext(cfg['PATHS']['MODEL_TO_LOAD'])[1]
+ONNX = True if model_ext == '.onnx' else False
 
-def predict_set(model, preprocessing_func, predict_df, threshold=0.5):
+
+def restore_model(model_path):
+    '''
+    Restores the model from serialized weights
+    param model_path: Path at which weights are stored
+    return: keras Model object
+    '''
+    # Restore the model from serialized weights
+    model_ext = os.path.splitext(model_path)[1]
+    if model_ext == '.onnx':
+        model = prepare(onnx.load(model_path))
+    else:
+        model = load_model(model_path, compile=False)
+    return model
+
+
+def predict_set(model, preprocessing_func, predict_df, onnx=False, threshold=0.5):
     '''
     Given a dataset, make predictions for each constituent example.
     :param model: A trained TensorFlow model
     :param preprocessing_func: Preprocessing function to apply before sending image to model
     :param predict_df: Pandas Dataframe of LUS frames, linking image filenames to labels
+    :param onnx: True if model was restored from a .onnx file
     :param threshold: Classification threshold
     :return: List of predicted classes, array of classwise prediction probabilities
     '''
 
-    # Create generator to load images from the frames CSV
-    img_gen = ImageDataGenerator(preprocessing_function=preprocessing_func)
-    img_shape = tuple(cfg['DATA']['IMG_DIM'])
-    x_col = 'Frame Path'
-    y_col = 'Class Name'
-    class_mode = 'categorical'
-    generator = img_gen.flow_from_dataframe(dataframe=predict_df, directory=cfg['PATHS']['FRAMES'],
-                                            x_col=x_col, y_col=y_col, target_size=img_shape,
-                                            batch_size=cfg['TRAIN']['BATCH_SIZE'],
-                                            class_mode=class_mode, validate_filenames=True, shuffle=False)
+    if onnx:
+        p = np.zeros((predict_df.shape[0], 2))
+        for i in range(predict_df.shape[0]):
+            frame_path = os.path.join(cfg['PATHS']['FRAMES'], predict_df.loc[i, 'Frame Path'])
+            frame = cv2.imread(frame_path)
+            frame = np.expand_dims(frame, axis=0)
+            preprocessed_frame = AB_classifier_preprocess(frame, preprocessing_func)
+            p[i] = model.run(preprocessed_frame).output
+    else:
+        # Create generator to load images from the frames CSV
+        img_gen = ImageDataGenerator(preprocessing_function=preprocessing_func)
+        img_shape = tuple(cfg['DATA']['IMG_DIM'])
+        x_col = 'Frame Path'
+        y_col = 'Class Name'
+        class_mode = 'categorical'
+        generator = img_gen.flow_from_dataframe(dataframe=predict_df, directory=cfg['PATHS']['FRAMES'],
+                                                x_col=x_col, y_col=y_col, target_size=img_shape,
+                                                batch_size=cfg['TRAIN']['BATCH_SIZE'],
+                                                class_mode=class_mode, validate_filenames=True, shuffle=False)
 
-    # Obtain prediction probabilities
-    p = model.predict_generator(generator)
+        # Obtain prediction probabilities
+        p = model.predict_generator(generator)
+
     test_predictions = (p[:, CLASS_IDX_MAP['b_lines']] >= threshold).astype(int)
 
     # Get prediction classes in original labelling system
@@ -110,7 +141,7 @@ def compute_clip_predictions(cfg, frames_table_path, clips_table_path, class_thr
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
     set_name = frames_table_path.split('/')[-1].split('.')[0] + '_clips'
 
     frames_df = pd.read_csv(frames_table_path)
@@ -128,7 +159,7 @@ def compute_clip_predictions(cfg, frames_table_path, clips_table_path, class_thr
         print("Making predictions for clip " + clip_name)
 
         # Make predictions for each image
-        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, threshold=class_thresh)
+        pred_classes, pred_probs = predict_set(model, preprocessing_fn, clip_files_df, onnx=ONNX, threshold=class_thresh)
 
         # Compute average prediction for entire clip
         if clip_algorithm == 'contiguous':
@@ -173,13 +204,13 @@ def compute_frame_predictions(cfg, dataset_files_path, class_thresh=0.5, calcula
     '''
     model_type = cfg['TRAIN']['MODEL_DEF']
     _, preprocessing_fn = get_model(model_type)
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
     set_name = dataset_files_path.split('/')[-1].split('.')[0] + '_frames'
 
     files_df = pd.read_csv(dataset_files_path)
 
     # Make predictions for each image
-    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, threshold=class_thresh)
+    pred_classes, pred_probs = predict_set(model, preprocessing_fn, files_df, onnx=ONNX, threshold=class_thresh)
 
     # Compute and save metrics
     if calculate_metrics:
@@ -282,6 +313,59 @@ def predict_with_contiguity_threshold(pred_probs, contiguity_threshold, classifi
     clip_pred = int(max_contiguous_b_line_preds(b_preds) >= contiguity_threshold)
     return np.array([1 - clip_pred, clip_pred])
 
+def predict_clipwise_with_contiguity_threshold_wb(preds, target_class, contiguity_threshold, classification_threshold):
+    '''
+    Determine prediction probabilities using the contiguous frames method (from WaveBase output)
+    :param preds: Pandas array of prediction probabilities
+    :param target_class: Target class for prediction
+    :param contiguity_threshold: The contiguity threshold
+    :param classification_threshold: The classification threshold
+    '''
+    cur_contiguous = 0
+    for i in range(preds.shape[0]):
+        if preds.loc[i, 0] == target_class and float(preds.loc[i, 1]) > classification_threshold:
+            cur_contiguous += 1
+        else:
+            cur_contiguous = 0
+        if cur_contiguous >= contiguity_threshold:
+            return True
+    return False
+
+def compute_clip_predictions_wb(cfg):
+    '''
+    Loads the frame-wise prediction csvs exported from the WaveBase device and creates clip-wise predictions using the contiguous frames method
+    :param cfg: project config
+    '''
+    # Point to acquired data
+    rootdir = cfg['PATHS']['RT_ROOT_DIR']
+    dated_dirs = next(os.walk(rootdir))[1]
+    recording_dir = 'recordings'
+
+    res = []
+    # Loop over all directories containing csvs
+    for dated_dir in dated_dirs:
+        for root, dir, files in os.walk(os.path.join(rootdir, dated_dir, recording_dir)):
+            # Keep only predicted probs csvs
+            csvs = [file for file in files if ".csv" in file]
+            for csv in csvs:
+                clip_name = str.replace(csv, "_probs.csv", ".mkv")
+                fname = os.path.join(root, csv)
+                data = pd.read_csv(fname, delimiter=',', header=None, dtype=str)
+                res.append([clip_name,
+                            'B-Line'
+                            if predict_clipwise_with_contiguity_threshold_wb(data,
+                                                                    'B-Lines',
+                                                                    cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD'],
+                                                                    cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'])
+                            else 'A-Line'])
+
+    res_df = pd.DataFrame(res, columns=['filename', 'prediction'])
+    res_file_name = 'results/predictions/'+ rootdir.split('/')[1] + '_clip_predictions_T' \
+                    + str(cfg['CLIP_PREDICTION']['CONTIGUITY_THRESHOLD']) + '_t0' \
+                    + str(cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'])[2] \
+                    + '_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv'
+    res_df.to_csv(res_file_name, index=False)
+    return res_df
 
 
 def highest_avg_contiguous_pred_prob(pred_probs, window_length):
@@ -354,7 +438,9 @@ def clock_avg_runtime(n_gpu_warmup_runs, n_experiment_runs):
     '''
     times = np.zeros((n_experiment_runs))
     img_dim = cfg['DATA']['IMG_DIM']
-    model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+
+    model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
+
     for i in range(n_gpu_warmup_runs):
         x = tf.random.normal((1, img_dim[0], img_dim[1], 3))
         y = model(x)
@@ -376,3 +462,4 @@ if __name__ == '__main__':
     compute_frame_predictions(cfg, frames_path, class_thresh=0.5, calculate_metrics=True)
     #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
     #sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)
+    #compute_clip_predictions_wb(cfg, target_class='B-Lines')

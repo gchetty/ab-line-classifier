@@ -6,19 +6,19 @@ import pandas as pd
 from tqdm import tqdm
 import tensorflow as tf
 from tkinter import filedialog as fd
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Model
 from src.predict import predict_set
 from src.visualization.visualization import visualize_heatmap
 from src.models.models import get_model
+from src.predict import restore_model
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
 class GradCAMExplainer:
 
     def __init__(self):
-        self.model = load_model(cfg['PATHS']['MODEL_TO_LOAD'], compile=False)
+        self.model = restore_model(cfg['PATHS']['MODEL_TO_LOAD'])
         self.save_img_dir = cfg['PATHS']['HEATMAPS']
         self.frames_dir = cfg['PATHS']['FRAMES']
         self.img_dim = tuple(cfg['DATA']['IMG_DIM'])
