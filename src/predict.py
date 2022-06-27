@@ -457,9 +457,9 @@ if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
     frames_path = cfg['PATHS']['FRAME_TABLE']
     clips_path = cfg['PATHS']['CLIPS_TABLE']
-    # compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
-    #                          clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
-    # compute_frame_predictions(cfg, frames_path, class_thresh=0.9, calculate_metrics=True)
+    compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
+                             clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
+    compute_frame_predictions(cfg, frames_path, class_thresh=0.5, calculate_metrics=True)
     #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
     #sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)
-    compute_clip_predictions_wb(cfg, target_class='B-Lines')
+    #compute_clip_predictions_wb(cfg, target_class='B-Lines')

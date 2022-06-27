@@ -24,6 +24,9 @@ def mp4_to_images(mp4_path):
     vid_dir, mp4_filename = os.path.split(mp4_path)      # Get folder and filename of mp4 file respectively
     mp4_filename = mp4_filename.split('.')[0]       # Strip file extension
 
+    if not os.path.exists(cfg['PATHS']['FRAMES']):
+        os.makedirs(cfg['PATHS']['FRAMES'])
+
     idx = 0
     max_area = 0
     max_area_id = 0
@@ -53,7 +56,7 @@ def create_image_dataset(query_df_path,real_time_data=False):
     clip_dfs = []
 
     for index, row in tqdm(query_df.iterrows()):
-        for mp4_file in glob.glob(row['Path'] + '.mp4'):
+        for mp4_file in glob.glob(row['Path'] + '/' + row['filename'] + '.mp4'):
             image_paths = mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
             if real_time_data:  # Real-time clips aren't associated with patient IDs
                 clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
