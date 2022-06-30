@@ -153,3 +153,7 @@ HPARAM_SEARCH:
     INIT_FILTERS:
       TYPE: 'set'
       RANGE: [16, 32]
+
+EXPLAINABILITY:
+  GRAD_CAM:
+    MODE: 'normal'  # One of {'normal', 'plusplus'} to determine weight formulas when computing heatmaps
