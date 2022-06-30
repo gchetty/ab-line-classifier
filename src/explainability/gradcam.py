@@ -74,14 +74,14 @@ class GradCAMExplainer:
         :return: Unactivated, unnormalized heatmap
         '''
         # Obtain first, second, and third gradients of output with respect to last convolutional layer weights
-        with tf.GradientTape() as tape_1:
+        with tf.GradientTape() as tape_3:
             with tf.GradientTape() as tape_2:
-                with tf.GradientTape() as tape_3:
+                with tf.GradientTape() as tape_1:
                     model_out, last_conv_layer = model(img)
                     class_out = model_out[:, np.argmax(model_out[0])]
-                    first_grads = tape_3.gradient(class_out, last_conv_layer)
+                    first_grads = tape_1.gradient(class_out, last_conv_layer)
                 second_grads = tape_2.gradient(first_grads, last_conv_layer)
-            third_grads = tape_1.gradient(second_grads, last_conv_layer)
+            third_grads = tape_3.gradient(second_grads, last_conv_layer)
 
         last_conv_sum = tf.reduce_sum(last_conv_layer, axis=(0, 1, 2))
 
@@ -90,11 +90,11 @@ class GradCAMExplainer:
         alpha_denom = np.where(alpha_denom != 0.0, alpha_denom, EPSILON)
 
         alphas = alpha_num / alpha_denom
-        alpha_norm = np.sum(alphas, axis=(0, 1))
+        alpha_norm = np.sum(alphas, axis=(1, 2))
         alphas /= alpha_norm
 
         activated_first_grad = np.maximum(first_grads, 0.0)  # Passing through ReLU
-        linearization_weights = np.sum(activated_first_grad * alphas, axis=(0, 1))
+        linearization_weights = np.sum(activated_first_grad * alphas, axis=(1, 2))
 
         heatmap = np.sum(linearization_weights * last_conv_layer, axis=-1)
 
