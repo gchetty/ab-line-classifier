@@ -1,10 +1,10 @@
 PATHS:
-  CLIPS_TABLE: 'data/clips_by_patient_cropped.csv'
-  FRAME_TABLE: 'data/frames.csv'   # Path to all LUS frames in the dataset
+  CLIPS_TABLE: 'data/clips_by_patients_cropped.csv'
+  FRAME_TABLE: 'data/frames_actually_cropped.csv' #'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
-  FRAMES: 'B:/Datasets/Ottawa/pure_and_muggle/frames/'
+  FRAMES: 'B:/Datasets/AB/data_actually_cropped'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
@@ -20,6 +20,7 @@ PATHS:
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments/'
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
+  PRETRAINED_WEIGHTS: '20220917-152337'
 
 DATA:
   IMG_DIM: [128, 128]
@@ -30,13 +31,14 @@ DATA:
 TRAIN:
   MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
+  SEED: 10001
   N_CLASSES: 2
   BATCH_SIZE: 256
   EPOCHS: 15
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 10
-  MEMORY_LIMIT: 10240
+  MEMORY_LIMIT: 21672
   DATA_AUG:
     ZOOM_RANGE: 0.1
     HORIZONTAL_FLIP: true
@@ -44,13 +46,13 @@ TRAIN:
     HEIGHT_SHIFT_RANGE: 0.2
     SHEAR_RANGE: 10
     ROTATION_RANGE: 45
-    BRIGHTNESS_RANGE: [0.7, 1.3]
+    BRIGHTNESS_RANGE: 0.3
   HPARAM_SEARCH:
     N_EVALS: 10
     HPARAM_OBJECTIVE: 'auc'
 
 CLIP_PREDICTION:
-  ALGORITHM: 'average'       # One of "contiguous", "sliding_window" or "average"
+  ALGORITHM: 'contiguous'       # One of "contiguous", "sliding_window" or "average"
   CLASSIFICATION_THRESHOLD: 0.5
   CONTIGUITY_THRESHOLD: 4
   SLIDING_WINDOW: 4

@@ -7,7 +7,6 @@ import json
 import pandas as pd
 from sklearn.metrics import *
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import onnx
 import cv2
 from onnx_tf.backend import prepare
@@ -15,6 +14,7 @@ from onnx_tf.backend import prepare
 from src.visualization.visualization import *
 from src.models.models import get_model
 from src.deploy import AB_classifier_preprocess
+from src.data.preprocessor import Preprocessor
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -74,19 +74,13 @@ def predict_set(model, preprocessing_func, predict_df, onnx=False, threshold=0.5
             preprocessed_frame = AB_classifier_preprocess(frame, preprocessing_func)
             p[i] = model.run(preprocessed_frame).output
     else:
-        # Create generator to load images from the frames CSV
-        img_gen = ImageDataGenerator(preprocessing_function=preprocessing_func)
-        img_shape = tuple(cfg['DATA']['IMG_DIM'])
-        x_col = 'Frame Path'
-        y_col = 'Class Name'
-        class_mode = 'categorical'
-        generator = img_gen.flow_from_dataframe(dataframe=predict_df, directory=cfg['PATHS']['FRAMES'],
-                                                x_col=x_col, y_col=y_col, target_size=img_shape,
-                                                batch_size=cfg['TRAIN']['BATCH_SIZE'],
-                                                class_mode=class_mode, validate_filenames=True, shuffle=False)
+        frames_dir = cfg['PATHS']['FRAMES_DIR']
+        dataset = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in predict_df['Frame Path'].tolist()], predict_df['Class']))
+        preprocessor = Preprocessor(preprocessing_func)
+        preprocessed_set = preprocessor.prepare(dataset, shuffle=False, augment=False)
 
         # Obtain prediction probabilities
-        p = model.predict_generator(generator)
+        p = model.predict(preprocessed_set)
 
     test_predictions = (p[:, CLASS_IDX_MAP['b_lines']] >= threshold).astype(int)
 
@@ -219,14 +213,14 @@ def compute_frame_predictions(cfg, dataset_files_path, class_thresh=0.5, calcula
     if calculate_metrics:
         frame_labels = files_df['Class']  # Get ground truth
         metrics = compute_metrics(cfg, np.array(frame_labels), np.array(pred_classes), pred_probs)
-        json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' + set_name +
+        json.dump(metrics, open(cfg['PATHS']['METRICS'] + 'frames_' +
                                 datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.json', 'w'))
 
     # Save predictions
     pred_probs_df = pd.DataFrame(pred_probs, columns=cfg['DATA']['CLASSES'])
     pred_probs_df.insert(0, 'Frame Path', files_df['Frame Path'])
     pred_probs_df.insert(1, 'Class', files_df['Class'])
-    pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + set_name + '_predictions' +
+    pred_probs_df.to_csv(cfg['PATHS']['BATCH_PREDS'] + '_predictions' +
                           datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '.csv')
     return pred_probs_df
 
@@ -407,8 +401,8 @@ if __name__ == '__main__':
     cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
     frames_path = cfg['PATHS']['FRAME_TABLE']
     clips_path = cfg['PATHS']['CLIPS_TABLE']
-    compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
-                             clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
-    compute_frame_predictions(cfg, frames_path, class_thresh=0.9, calculate_metrics=True)
+    # compute_clip_predictions(cfg, frames_path, clips_path, class_thresh=cfg['CLIP_PREDICTION']['CLASSIFICATION_THRESHOLD'],
+    #                          clip_algorithm=cfg['CLIP_PREDICTION']['ALGORITHM'], calculate_metrics=True)
+    compute_frame_predictions(cfg, frames_path, class_thresh=0.5, calculate_metrics=True)
     #b_line_threshold_experiment('results/predictions/frame_preds_0.5c.csv', 0, 40, class_thresh=0.95, contiguous=False, document=True)
     #sliding_window_variation_experiment('results/predictions/frame_preds_0.5c.csv', 1, 40, class_thresh=0.95, document=True)

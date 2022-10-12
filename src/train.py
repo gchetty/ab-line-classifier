@@ -1,32 +1,35 @@
-import pandas as pd
 import os
-import yaml
-import dill
 import datetime
 import numpy as np
 from math import ceil
+import gc
 import sys
+
 import tensorflow as tf
 from tensorflow.keras.initializers import Constant
-from sklearn.model_selection import train_test_split, KFold
-from skopt import gp_minimize
-from skopt.space import Real, Categorical, Integer
 from tensorflow.keras.metrics import Precision, Recall, AUC
 from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.models import save_model
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard, ReduceLROnPlateau
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.initializers import Constant
-from src.models.models import *
-from src.visualization.visualization import *
-import gc
 from tensorflow.keras import backend as k
 from tensorflow.keras.callbacks import Callback
+from sklearn.model_selection import train_test_split, KFold
+from skopt import gp_minimize
+from skopt.space import Real, Categorical, Integer
+import pandas as pd
+import yaml
+import dill
+
+from src.models.models import *
+from src.visualization.visualization import *
+from src.data.preprocessor import Preprocessor
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
 for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
+
 
 def get_class_weights(histogram):
     '''
@@ -43,7 +46,7 @@ def get_class_weights(histogram):
     return class_weight
 
 
-def define_callbacks(patience):
+def define_callbacks():
     '''
     Defines a list of Keras callbacks to be applied to model training loop
     :param cfg: Project config object
@@ -65,7 +68,7 @@ def define_callbacks(patience):
     return callbacks
 
 
-def partition_dataset(val_split, test_split, save_dfs=True):
+def partition_dataset(val_split, test_split, save_dfs=True, seed=None):
     '''
     Partition the frame_df into training, validation and test sets by patient ID
     :param val_split: Validation split (in range [0, 1])
@@ -77,8 +80,8 @@ def partition_dataset(val_split, test_split, save_dfs=True):
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
     all_pts = frame_df['Patient'].unique()  # Get list of patients
     relative_val_split = val_split / (1 - (test_split))
-    trainval_pts, test_pts = train_test_split(all_pts, test_size=test_split)
-    train_pts, val_pts = train_test_split(trainval_pts, test_size=relative_val_split)
+    trainval_pts, test_pts = train_test_split(all_pts, test_size=test_split, random_state=seed)
+    train_pts, val_pts = train_test_split(trainval_pts, test_size=relative_val_split, random_state=seed)
 
     train_df = frame_df[frame_df['Patient'].isin(train_pts)]
     val_df = frame_df[frame_df['Patient'].isin(val_pts)]
@@ -95,21 +98,22 @@ def partition_dataset(val_split, test_split, save_dfs=True):
     return train_df, val_df, test_df
 
 
-def log_test_results(model, test_generator, test_metrics, log_dir):
+def log_test_results(model, test_set, test_df, test_metrics, log_dir):
     '''
     Visualize performance of a trained model on the test set. Optionally save the model.
     :param model: A trained TensorFlow model
-    :param test_generator: A TensorFlow image generator for the test set
+    :param test_set: A tf.data Dataset for the test set
+    :param test_df: A pd.DataFrame containing frame paths and labels for the test set
     :param test_metrics: Dict of test set performance metrics
     :param log_dir: Path to write TensorBoard logs
     '''
 
     # Visualization of test results
-    test_predictions = model.predict(test_generator, verbose=0)
-    test_labels = test_generator.labels
-    plt = plot_roc(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    test_predictions = model.predict(test_set, verbose=0)
+    test_labels = test_df['Class']
+    plt = plot_roc(test_labels, test_predictions, cfg['DATA']['CLASSES'], dir_path=cfg['PATHS']['IMAGES'])
     roc_img = plot_to_tensor()
-    plt = plot_confusion_matrix(test_labels, test_predictions, list(test_generator.class_indices.keys()), dir_path=cfg['PATHS']['IMAGES'])
+    plt = plot_confusion_matrix(test_labels, test_predictions, cfg['DATA']['CLASSES'], dir_path=cfg['PATHS']['IMAGES'])
     cm_img = plot_to_tensor()
 
     # Log test set results and plots in TensorBoard
@@ -152,52 +156,31 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
     :return: (model, test_metrics, test_generator)
     '''
 
-    # Create ImageDataGenerators. For training data: randomly zoom, stretch, horizontally flip image as data augmentation.
-    train_img_gen = ImageDataGenerator(zoom_range=cfg['TRAIN']['DATA_AUG']['ZOOM_RANGE'],
-                                       horizontal_flip=cfg['TRAIN']['DATA_AUG']['HORIZONTAL_FLIP'],
-                                       width_shift_range=cfg['TRAIN']['DATA_AUG']['WIDTH_SHIFT_RANGE'],
-                                       height_shift_range=cfg['TRAIN']['DATA_AUG']['HEIGHT_SHIFT_RANGE'],
-                                       shear_range=cfg['TRAIN']['DATA_AUG']['SHEAR_RANGE'],
-                                       rotation_range=cfg['TRAIN']['DATA_AUG']['ROTATION_RANGE'],
-                                       brightness_range=cfg['TRAIN']['DATA_AUG']['BRIGHTNESS_RANGE'],
-                                       preprocessing_function=preprocessing_fn)
-    val_img_gen = ImageDataGenerator(preprocessing_function=preprocessing_fn)
-    test_img_gen = ImageDataGenerator(preprocessing_function=preprocessing_fn)
+    # Create TF datasets for training, validation and test sets
+    frames_dir = cfg['PATHS']['FRAMES']
+    train_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in train_df['Frame Path'].tolist()], train_df['Class']))
+    val_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in val_df['Frame Path'].tolist()], val_df['Class']))
+    test_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in test_df['Frame Path'].tolist()], test_df['Class']))
 
-    # Create DataFrameIterators
-    img_shape = tuple(cfg['DATA']['IMG_DIM'])
-    x_col = 'Frame Path'
-    y_col = 'Class Name'
-    class_mode = 'categorical'
-    train_generator = train_img_gen.flow_from_dataframe(dataframe=train_df, directory=cfg['PATHS']['FRAMES'],
-                                                        x_col=x_col, y_col=y_col, target_size=img_shape,
-                                                        batch_size=cfg['TRAIN']['BATCH_SIZE'],
-                                                        class_mode=class_mode, validate_filenames=True)
-    val_generator = val_img_gen.flow_from_dataframe(dataframe=val_df, directory=cfg['PATHS']['FRAMES'],
-                                                    x_col=x_col, y_col=y_col, target_size=img_shape,
-                                                    batch_size=cfg['TRAIN']['BATCH_SIZE'],
-                                                    class_mode=class_mode, validate_filenames=True)
-    test_generator = test_img_gen.flow_from_dataframe(dataframe=test_df, directory=cfg['PATHS']['FRAMES'],
-                                                      x_col=x_col, y_col=y_col, target_size=img_shape,
-                                                      batch_size=cfg['TRAIN']['BATCH_SIZE'],
-                                                      class_mode=class_mode, validate_filenames=True, shuffle=False)
-
-    # Save model's ordering of class indices
-    dill.dump(train_generator.class_indices, open(cfg['PATHS']['CLASS_NAME_MAP'], 'wb'))
+    # Set up preprocessing transformations to apply to each item in dataset
+    preprocessor = Preprocessor(preprocessing_fn)
+    train_set = preprocessor.prepare(train_set, shuffle=True, augment=True)
+    val_set = preprocessor.prepare(val_set, shuffle=False, augment=False)
+    test_set = preprocessor.prepare(test_set, shuffle=False, augment=False)
 
     # Apply class imbalance strategy. We have many more X-rays negative for COVID-19 than positive.
-    histogram = np.bincount(np.array(train_generator.labels).astype(int))  # Get class distribution
+    histogram = np.bincount(train_df['Class'].to_numpy().astype(int))  # Get class distribution
     class_weight = get_class_weights(histogram)
 
     # Define performance metrics
     n_classes = len(cfg['DATA']['CLASSES'])
     threshold = 1.0 / n_classes # Binary classification threshold for a class
-    metrics = ['accuracy', AUC(name='auc'), F1Score(name='f1score', num_classes=n_classes)]
-    metrics += [Precision(name='precision_' + c, thresholds=threshold, class_id=train_generator.class_indices[c]) for c in train_generator.class_indices]
-    metrics += [Recall(name='recall_' + c, thresholds=threshold, class_id=train_generator.class_indices[c]) for c in train_generator.class_indices]
+    metrics = ['accuracy', AUC(name='auc')]
+    metrics += [Precision(name='precision_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
+    metrics += [Recall(name='recall_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
 
     print('Training distribution: ',
-          ['Class ' + list(train_generator.class_indices.keys())[i] + ': ' + str(histogram[i]) + '. '
+          ['Class ' + cfg['DATA']['CLASSES'][i] + ': ' + str(histogram[i]) + '. '
            for i in range(len(histogram))])
     input_shape = cfg['DATA']['IMG_DIM'] + [3]
 
@@ -208,20 +191,18 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
 
     # Define the model
     model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
-                      mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias)
+                      mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias,
+                      weights_path=cfg['PATHS']['PRETRAINED_WEIGHTS'])
 
     # Set training callbacks.
-    callbacks = define_callbacks(cfg)
+    callbacks = define_callbacks()
     if log_dir is not None:
         tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
         callbacks.append(tensorboard)
 
     # Train the model.
-    steps_per_epoch = ceil(train_generator.n / train_generator.batch_size)
-    val_steps = ceil(val_generator.n / val_generator.batch_size)
-    history = model.fit(train_generator, steps_per_epoch=steps_per_epoch, epochs=cfg['TRAIN']['EPOCHS'],
-                        validation_data=val_generator, validation_steps=val_steps, callbacks=callbacks,
-                        verbose=verbose, class_weight=class_weight)
+    history = model.fit(train_set, epochs=cfg['TRAIN']['EPOCHS'], validation_data=val_set, callbacks=callbacks,
+                         verbose=verbose, class_weight=class_weight)
 
     # Save the model's weights
     if save_weights:
@@ -232,15 +213,15 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
             save_model(model, model_path)  # Save the model's weights
 
     # Run the model on the test set and print the resulting performance metrics.
-    test_results = model.evaluate(test_generator, verbose=1)
+    test_results = model.evaluate(test_set, verbose=1)
     test_metrics = {}
     test_summary_str = [['**Metric**', '**Value**']]
     for metric, value in zip(model.metrics_names, test_results):
         test_metrics[metric] = value
         test_summary_str.append([metric, str(value)])
     if log_dir is not None:
-        log_test_results(model, test_generator, test_metrics, log_dir)
-    return model, test_metrics, test_generator
+        log_test_results(model, test_set, test_df, test_metrics, log_dir)
+    return model, test_metrics, test_set
 
 
 def train_single(hparams=None, save_weights=False, write_logs=False):
@@ -257,7 +238,8 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
             tf.config.experimental.set_virtual_device_configuration(gpu, [
                 tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
-    train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'])
+    train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'],
+                                                  seed=cfg['TRAIN']['SEED'])
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
     if write_logs:
         log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -287,9 +269,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     if gpus:
         for gpu in gpus:
             tf.config.experimental.set_virtual_device_configuration(gpu, [
-                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=12288)])
-
-    n_classes = len(cfg['DATA']['CLASSES'])
+                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=cfg['TRAIN']['MEMORY_LIMIT'])])
 
     n_folds = cfg['TRAIN']['N_FOLDS']
     if frame_df is None:

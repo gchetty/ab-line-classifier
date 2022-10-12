@@ -49,10 +49,13 @@ def create_image_dataset(query_df_path):
     clip_dfs = []
 
     for index, row in tqdm(query_df.iterrows()):
-        for mp4_file in glob.glob(row['Path'] + '.mp4'):
+        print(row['Path'])
+        #print(glob.glob(row['Path']))
+        for mp4_file in glob.glob(row['Path']):
             image_paths = mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
-            clip_df = pd.DataFrame({'Frame Path': image_paths, 'Patient': row['patient_id'], 'Class': row['class'],
-                                    'Class Name': cfg['DATA']['CLASSES'][row['class']]})
+            clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
+                                'Class Name': cfg['DATA']['CLASSES'][row['class']]})
+            print(clip_df.head())
             clip_dfs.append(clip_df)
     all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
     all_clips_df.to_csv(cfg['PATHS']['FRAME_TABLE'], index=False)
