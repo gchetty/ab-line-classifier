@@ -9,9 +9,31 @@ def initialize_with_pretrained_weights(model, weights_path):
     :return: A tf.keras model with weights initialized using pre-trained values
     '''
     pretrained = tf.keras.models.load_model(weights_path, compile=False)
+    if pretrained.layers[0].name == "model":
+        pretrained = pretrained.layers[0]
     for layer in pretrained.layers:
-        if layer.trainable:
-            model.get_layer(layer.name).set_weights(layer.get_weights())
+        if layer.trainable and len(layer.trainable_weights) > 0:
+            try:
+                model.get_layer(layer.name).set_weights(layer.get_weights())
+            except:
+                print(f"{layer.name} is not in the new model.")
+    return model
+
+
+def freeze_layers(model,  freeze_cutoff, freeze_bn=True):
+    '''
+    Freeze all layers up to specified index in list of model's layers
+    :param model: A tf.keras model
+    :param freeze_cutoff: Index of last layer to freeze in model's list of layers
+    :freeze_bn: If True, all batch normalization layers are frozen
+    '''
+    for i in range(len(model.layers)):
+        if i <= freeze_cutoff:
+            model.layers[i].trainable = False
+        elif freeze_bn and (('batch' in model.layers[i].name) or ('bn' in model.layers[i].name)):
+            model.layers[i].trainable = False         # Freeze batch norm layers
+        else:
+            print(f"Layer {i}: {model.layers[i].name} not frozen")
     return model
 
 

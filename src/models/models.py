@@ -66,25 +66,20 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
     weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
     fc0_nodes = model_config['NODES_DENSE0']
-    frozen_layers = model_config['FROZEN_LAYERS']
-
+    freeze_idx = model_config['FREEZE_IDX']
+    cutoff_idx = model_config['CUTOFF_IDX']
     print("MODEL CONFIG: ", model_config)
     
     if mixed_precision:
         tf.train.experimental.enable_mixed_precision_graph_rewrite(optimizer)
 
-    if output_bias is not None:
-        output_bias = Constant(output_bias)     # Set initial output bias
-
     # Start with pretrained MobileNetV2
     X_input = Input(input_shape, name='input')
-    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input, alpha=0.75)
+    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
+    base_model = Model(base_model.input, base_model.layers[cutoff_idx].output)
     
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    base_model = freeze_layers(base_model, freeze_idx)
 
     X = base_model.output
 
@@ -121,7 +116,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     dropout = model_config['DROPOUT']
     weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    frozen_layers = model_config['FROZEN_LAYERS']
+    freeze_idx = model_config['FREEZE_IDX']
     fc0_nodes = model_config['NODES_DENSE0']
 
     print("MODEL CONFIG: ", model_config)
@@ -137,10 +132,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     base_model = VGG16(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
     
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    base_model = freeze_layers(base_model, freeze_idx)
     
     X = base_model.output
 
@@ -220,7 +212,7 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     dropout = model_config['DROPOUT']
     l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    frozen_layers = model_config['FROZEN_LAYERS']
+    freeze_idx = model_config['FREEZE_IDX']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -233,6 +225,8 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     # Pre-trained architecture
     X_input = Input(input_shape, name='input')
     base_model = EfficientNetB7(weights='imagenet', input_shape=input_shape, include_top=False, input_tensor=X_input)
+
+    base_model = freeze_layers(base_model, freeze_idx)
 
     X = base_model.output
 
