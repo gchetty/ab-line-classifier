@@ -116,4 +116,3 @@ if __name__ == '__main__':
     gradcam = GradCAMExplainer()
     while True:
         gradcam.get_heatmap_for_frame()
-

@@ -41,9 +41,9 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
     :preds_path (str): Path to CSV file in which frame-wise predictions are saved
     :return (np.array): Frame-wise prediction probabilities
     '''
-
+    
     model_ext = os.path.splitext(model_path)[1]
-    vc = cv2.VideoCapture(mp4_path)
+    vc = cv2.VideoCapture(vid_path)
     if model_ext == '.onnx':
         model = prepare(onnx.load(model_path))
     else:
@@ -67,4 +67,10 @@ def predict_wavebase_mp4(model_path, mp4_path, preds_path):
     pred_df.to_csv(preds_path, index=False)
     return preds
 
+
+# model_path = 'results/models/cutoffvgg16_final_cropped.h5'
+# model_path = 'results/models/ab_model_not_compiled/AB_classifier.onnx'
+# mp4_path = 'C:/Users/Blake/Downloads/AB_test/demo.mp4'
+# preds_path = 'C:/Users/Blake/Downloads/AB_test/demo.csv'
+# preds = predict_framewise(model_path, vid_path, preds_path)
 

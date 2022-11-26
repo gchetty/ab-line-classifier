@@ -21,12 +21,15 @@ PATHS:
   EXPERIMENTS: './results/experiments/'
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
   PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
+  RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
+  RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
 
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
+  RT_B_LINES_3_CLASS: 'b_lines'
 
 TRAIN:
   MODEL_DEF: 'mobilenetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
@@ -53,9 +56,9 @@ TRAIN:
     HPARAM_OBJECTIVE: 'auc'
 
 CLIP_PREDICTION:
-  ALGORITHM: 'contiguous'       # One of "contiguous", "sliding_window" or "average"
-  CLASSIFICATION_THRESHOLD: 0.5
-  CONTIGUITY_THRESHOLD: 4
+  ALGORITHM: 'average'       # One of "contiguous", "sliding_window" or "average"
+  CLASSIFICATION_THRESHOLD: 0.7
+  CONTIGUITY_THRESHOLD: 3
   SLIDING_WINDOW: 4
 
 HPARAMS:
@@ -154,3 +157,7 @@ HPARAM_SEARCH:
     INIT_FILTERS:
       TYPE: 'set'
       RANGE: [16, 32]
+
+EXPLAINABILITY:
+  GRAD_CAM:
+    MODE: 'normal'  # One of {'normal', 'plusplus'} to determine weight formulas when computing heatmaps
