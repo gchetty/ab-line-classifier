@@ -15,9 +15,12 @@ from tensorflow.keras.applications.xception import preprocess_input as xception_
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
 from tensorflow.keras.applications.resnet_v2 import preprocess_input as resnetv2_preprocess
 
+from src.models.model_utils import *
+
 def get_model(model_name):
     '''
     Return the model definition and associated preprocessing function as specified in the config file
+    :model_name: String identifier for a model architecture
     :return: (TF model definition function, preprocessing function)
     '''
 
@@ -44,7 +47,8 @@ def get_model(model_name):
         preprocessing_function = mobilenetv2_preprocess
     return model_def, preprocessing_function
 
-def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+
+def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None, weights_path=None):
     '''
     Defines a model based on a pretrained MobileNetV2 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -52,6 +56,7 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
     :param metrics: Metrics to track model's performance
     :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
     :param output_bias: bias initializer of output layer
+    :param weights_path: path to pretrained weights
     :return: a Keras Model object with the architecture defined in this method
     '''
 
@@ -61,43 +66,40 @@ def mobilenetv2(model_config, input_shape, metrics, n_classes, mixed_precision=F
     weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
     fc0_nodes = model_config['NODES_DENSE0']
-    frozen_layers = model_config['FROZEN_LAYERS']
-
+    freeze_idx = model_config['FREEZE_IDX']
+    cutoff_idx = model_config['CUTOFF_IDX']
     print("MODEL CONFIG: ", model_config)
     
     if mixed_precision:
         tf.train.experimental.enable_mixed_precision_graph_rewrite(optimizer)
 
-    if output_bias is not None:
-        output_bias = Constant(output_bias)     # Set initial output bias
-
     # Start with pretrained MobileNetV2
     X_input = Input(input_shape, name='input')
-    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input, alpha=0.75)
+    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
+    base_model = Model(base_model.input, base_model.layers[cutoff_idx].output)
     
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    base_model = freeze_layers(base_model, freeze_idx)
 
     X = base_model.output
 
     # Add custom top layers
     X = GlobalAveragePooling2D()(X)
     X = Dropout(dropout)(X)
-    #X = Dense(fc0_nodes, activation='relu', activity_regularizer=l2(weight_decay), name='fc0')(X)
-    #X = Dropout(dropout)(X)
+    X = Dense(fc0_nodes, activation='relu', activity_regularizer=l2(weight_decay), name='fc0')(X)
+    X = Dropout(dropout)(X)
     X = Dense(n_classes, bias_initializer=output_bias, name='logits')(X)
     Y = Activation('softmax', dtype='float32', name='output')(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
     
-def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None):
+def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None, weights_path=None):
     '''
     Defines a model based on a pretrained VGG16 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -105,6 +107,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     :param metrics: Metrics to track model's performance
     :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
     :param output_bias: bias initializer of output layer
+    :param weights_path: path to pretrained weights
     :return: a Keras Model object with the architecture defined in this method
     '''
 
@@ -113,7 +116,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     dropout = model_config['DROPOUT']
     weight_decay = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    frozen_layers = model_config['FROZEN_LAYERS']
+    freeze_idx = model_config['FREEZE_IDX']
     fc0_nodes = model_config['NODES_DENSE0']
 
     print("MODEL CONFIG: ", model_config)
@@ -129,10 +132,7 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
     base_model = VGG16(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
     
     # Freeze layers
-    for layers in range(len(frozen_layers)):
-        layer2freeze = frozen_layers[layers]
-        print('Freezing layer: ' + str(layer2freeze))
-        base_model.layers[layer2freeze].trainable = False
+    base_model = freeze_layers(base_model, freeze_idx)
     
     X = base_model.output
 
@@ -144,11 +144,13 @@ def vgg16(model_config, input_shape, metrics, n_classes, mixed_precision, output
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
 
-def xception(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None):
+def xception(model_config, input_shape, metrics, n_classes, mixed_precision, output_bias=None, weights_path=None):
     '''
     Defines a model based on a pretrained Xception for bianry US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -156,15 +158,14 @@ def xception(model_config, input_shape, metrics, n_classes, mixed_precision, out
     :param metrics: Metrics to track model's performance
     :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
     :param output_bias: bias initializer of output layer
+    :param weights_path: path to pretrained weights
     :return: a Keras Model object with the architecture defined in this method
     '''
 
      # Set hyperparameters
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
-    l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    frozen_layers = model_config['FROZEN_LAYERS']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -177,12 +178,7 @@ def xception(model_config, input_shape, metrics, n_classes, mixed_precision, out
     # Start with pretrained Xception
     X_input = Input(input_shape, name='input')
     base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
-    
-    # Freeze layers
-    '''
-    ADD FROZEN LAYERS HERE
-    '''
-    
+
     X = base_model.output
 
     # Add custom top layers
@@ -193,11 +189,13 @@ def xception(model_config, input_shape, metrics, n_classes, mixed_precision, out
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
     
-def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None, weights_path=None):
     '''
      Defines a model based on a pretrained EfficientNetB7 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -205,6 +203,7 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     :param metrics: Metrics to track model's performance
     :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
     :param output_bias: bias initializer of output layer
+    :param weights_path: path to pretrained weights
     :return: a Keras Model object with the architecture defined in this method
     '''
 
@@ -213,7 +212,7 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     dropout = model_config['DROPOUT']
     l2_lambda = model_config['L2_LAMBDA']
     optimizer = Adam(learning_rate=lr)
-    frozen_layers = model_config['FROZEN_LAYERS']
+    freeze_idx = model_config['FREEZE_IDX']
 
     print("MODEL CONFIG: ", model_config)
     
@@ -227,11 +226,7 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
     X_input = Input(input_shape, name='input')
     base_model = EfficientNetB7(weights='imagenet', input_shape=input_shape, include_top=False, input_tensor=X_input)
 
-    # Freeze layers
-    # for layers in range(len(frozen_layers)):
-    #     layer2freeze = frozen_layers[layers]
-    #     print('Freezing layer: ' + str(layer2freeze))
-    #     base_model.layers[layer2freeze].trainable = False
+    base_model = freeze_layers(base_model, freeze_idx)
 
     X = base_model.output
 
@@ -243,12 +238,14 @@ def efficientnetb7(model_config, input_shape, metrics, n_classes, mixed_precisio
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
 
 
-def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None, weights_path=None):
     # Set hyperparameters
     nodes_dense0 = model_config['NODES_DENSE0']
     lr = model_config['LR']
@@ -292,45 +289,13 @@ def cnn0(model_config, input_shape, metrics, n_classes, mixed_precision=False, o
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics)
     return model
 
-# Skip Connector for custom ResNetV2
-def residual_block(model_config, X, num_filters: int, stride: int = 1, kernel_size: int = 3,
-                   activation: str = 'relu', bn: bool = True, conv_first: bool = True):
-    """
-    :param X: Tensor layer from previous layer
-    :param num_filers: integer, conv2d number of filters
-    :param stride: integer, default 1, stride square dimension
-    :param kernel_size: integer, default 3, conv2d square kernel dimensions
-    :param activation: string, default 'relu', activation function
-    :param bn: bool, default True, to use Batch Normalization
-    :param conv_first: bool, default True, conv-bn-activation (True) or bn-activation-conv (False)
-    """
-
-    conv_layer = Conv2D(num_filters,
-                        kernel_size=kernel_size,
-                        strides=stride,
-                        padding='same')
-    # X = input
-    if conv_first:
-        X = conv_layer(X)
-        if bn:
-            X = BatchNormalization()(X)
-        if activation is not None:
-            X = Activation(activation)(X)
-
-    else:
-        if bn:
-            X = BatchNormalization()(X)
-        if activation is not None:
-            X = Activation(activation)(X)
-        X = conv_layer(X)
-
-    return X
-
-def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None, weights_path=None):
     '''
      Defines a model based on a custom ResNetV2 for binary US classification.
     :param model_config: A dictionary of parameters associated with the model architecture
@@ -338,6 +303,7 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     :param metrics: Metrics to track model's performance
     :param mixed_precision: Whether to use mixed precision (use if you have GPU with compute capacity >= 7.0)
     :param output_bias: bias initializer of output layer
+    :param weights_path: path to pretrained weights
     :return: a Keras Model object with the architecture defined in this method
     '''
 
@@ -407,12 +373,12 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
     # Model head
     X = SpatialDropout2D(dropout1)(X)
     X = GlobalAveragePooling2D(name='global_avgpool')(X)
-    #X = Dense(nodes_dense0, kernel_initializer='he_uniform', activity_regularizer=l2(l2_lambda), activation='relu',
-              #name='fc0')(X)
     Y = Dense(n_classes, activation='softmax', dtype='float32', name='output', bias_initializer=output_bias)(X)
 
     # Set model loss function, optimizer, metrics.
     model = Model(inputs=X_input, outputs=Y)
+    if weights_path is not None:
+        model = initialize_with_pretrained_weights(model, weights_path)
     model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=metrics, run_eagerly=True)
     return model
@@ -420,7 +386,8 @@ def custom_resnetv2(model_config, input_shape, metrics, n_classes, mixed_precisi
 
 class CutoffVGG16:
 
-    def __init__(self, model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None):
+    def __init__(self, model_config, input_shape, metrics, n_classes, mixed_precision=False, output_bias=None,
+                 weights_path=None):
         self.lr_extract = model_config['LR_EXTRACT']
         self.lr_finetune = model_config['LR_FINETUNE']
         self.dropout = model_config['DROPOUT']
@@ -434,6 +401,7 @@ class CutoffVGG16:
         self.input_shape = input_shape
         self.metrics = metrics
         self.mixed_precision = mixed_precision
+        self.weights_path = weights_path
         self.model = self.define_model()
 
     def define_model(self):
@@ -447,23 +415,23 @@ class CutoffVGG16:
         X = Dropout(self.dropout)(X)
         Y = Dense(self.n_classes, activation='softmax', bias_initializer=self.output_bias, name='output')(X)
         model = Model(inputs=X_input, outputs=Y)
+        if self.weights_path is not None:
+            model = initialize_with_pretrained_weights(model, self.weights_path)
         model.summary()
         return model
 
-    def fit(self, train_data, steps_per_epoch=None, epochs=1, validation_data=None, validation_steps=None,
-            callbacks=None, verbose=1, class_weight=None):
+    def fit(self, train_data, epochs=1, validation_data=None, callbacks=None, verbose=1, class_weight=None):
         for layer in self.vgg16_layers:
             layer.trainable = False
         self.model.compile(optimizer=self.optimizer_extract, loss='categorical_crossentropy', metrics=self.metrics, run_eagerly=True)
-        history_extract = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=self.extract_epochs,
-                            validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
-                            verbose=verbose, class_weight=class_weight)
+        history_extract = self.model.fit(train_data, epochs=self.extract_epochs, validation_data=validation_data,
+                                         callbacks=callbacks, verbose=verbose, class_weight=class_weight)
         for layer in self.vgg16_layers[self.finetune_layer:]:
             layer.trainable = True
         self.model.compile(optimizer=self.optimizer_finetune, loss='categorical_crossentropy', metrics=self.metrics, run_eagerly=True)
-        history_finetune = self.model.fit(train_data, steps_per_epoch=steps_per_epoch, epochs=epochs, initial_epoch=history_extract.epoch[-1],
-                                      validation_data=validation_data, validation_steps=validation_steps, callbacks=callbacks,
-                                      verbose=verbose, class_weight=class_weight)
+        history_finetune = self.model.fit(train_data, epochs=epochs, initial_epoch=history_extract.epoch[-1],
+                                           validation_data=validation_data, callbacks=callbacks, verbose=verbose,
+                                          class_weight=class_weight)
 
     def evaluate(self, test_data, verbose=1):
         return self.model.evaluate(test_data, verbose=verbose)

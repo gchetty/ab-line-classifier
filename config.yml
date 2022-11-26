@@ -1,10 +1,10 @@
 PATHS:
-  CLIPS_TABLE: 'data/rt_clips.csv'
-  FRAME_TABLE: 'data/rt_frames.csv'   # Path to all LUS frames in the dataset
+  CLIPS_TABLE: 'data/clips_by_patients_cropped.csv'
+  FRAME_TABLE: 'data/frames_actually_cropped.csv' #'data/frames.csv'   # Path to all LUS frames in the dataset
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
-  FRAMES: 'frames/'
+  FRAMES: 'B:/Datasets/AB/data_actually_cropped'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
@@ -20,6 +20,7 @@ PATHS:
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments/'
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
+  PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
 
@@ -31,15 +32,17 @@ DATA:
   RT_B_LINES_3_CLASS: 'b_lines'
 
 TRAIN:
-  MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
+  MODEL_DEF: 'mobilenetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
+  SEED: 10001
   N_CLASSES: 2
   BATCH_SIZE: 256
-  EPOCHS: 15
+  EPOCHS: 30
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 10
-  MEMORY_LIMIT: 10240
+  MEMORY_LIMIT: 21672
+  USE_PRETRAINED: False
   DATA_AUG:
     ZOOM_RANGE: 0.1
     HORIZONTAL_FLIP: true
@@ -47,7 +50,7 @@ TRAIN:
     HEIGHT_SHIFT_RANGE: 0.2
     SHEAR_RANGE: 10
     ROTATION_RANGE: 45
-    BRIGHTNESS_RANGE: [0.7, 1.3]
+    BRIGHTNESS_RANGE: 0.3
   HPARAM_SEARCH:
     N_EVALS: 10
     HPARAM_OBJECTIVE: 'auc'
@@ -60,11 +63,12 @@ CLIP_PREDICTION:
 
 HPARAMS:
   MOBILENETV2:
-    LR: 0.001
+    LR: 0.0001
     DROPOUT: 0.35
-    L2_LAMBDA: 0.0001
+    L2_LAMBDA: 0.001
     NODES_DENSE0: 32
-    FROZEN_LAYERS: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,16,17,18,19,20,21,22,23,24,25,26,26,27,28,29,30]
+    FREEZE_IDX: 116
+    CUTOFF_IDX: 115
   SHUFFLENETV2:
     LR: 0.1
     DROPOUT: 0.5
@@ -74,11 +78,11 @@ HPARAMS:
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
     NODES_DENSE0: 64
-    FROZEN_LAYERS: []
+    FREEZE_IDX: -1
   XCEPTION:
     LR: 0.01
     DROPOUT: 0.5
-    FROZEN_LAYERS: []
+    FREEZE_IDX: -1
     L2_LAMBDA: 0.01
   BiTR50x1:
     #https://blog.tensorflow.org/2020/05/bigtransfer-bit-state-of-art-transfer-learning-computer-vision.html
@@ -89,7 +93,7 @@ HPARAMS:
     LR: 0.1
     DROPOUT: 0.5
     L2_LAMBDA: 0.01
-    FROZEN_LAYERS: []
+    FREEZE_IDX: -1
   CNN0:
     LR: 0.001
     DROPOUT: 0.35

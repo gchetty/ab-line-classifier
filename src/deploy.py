@@ -24,8 +24,8 @@ def AB_classifier_preprocess(image, preprocessing_fn):
     N_CHANNELS = 3
     INPUT_SIZE = (128, 128)
 
-    # Resize image
-    resized_image = cv2.resize(image[0], INPUT_SIZE, interpolation=cv2.INTER_LINEAR)
+    # Resize image using the same interpolation method as was used during training
+    resized_image = cv2.resize(image[0], INPUT_SIZE, interpolation=cv2.INTER_NEAREST)
     resized_image = resized_image.reshape((1, INPUT_SIZE[0], INPUT_SIZE[1], N_CHANNELS))
 
     # Apply scaling function
@@ -33,14 +33,15 @@ def AB_classifier_preprocess(image, preprocessing_fn):
     return preprocessed_image
 
 
-def predict_framewise(model_path, vid_path, preds_path):
+def predict_wavebase_mp4(model_path, mp4_path, preds_path):
     '''
-    Computes frame-wise predictions for a given clip loaded directly from storage
-    :param model_path: path to model to make predictions with
-    :param vid_path: path to clip to make frame-wise predictions for (any video file format supported by OpenCV)
-    :param preds_path: path to save the frame-wise predictions to
-    :return: np array of the computed frame-wise predictions
+    Mimics the process for producing frame-wise predictions on the WaveBase device.
+    :model_path (str): Path to saved model
+    :mp4_path (str): Path to mp4 file for prediction
+    :preds_path (str): Path to CSV file in which frame-wise predictions are saved
+    :return (np.array): Frame-wise prediction probabilities
     '''
+    
     model_ext = os.path.splitext(model_path)[1]
     vc = cv2.VideoCapture(vid_path)
     if model_ext == '.onnx':
@@ -52,6 +53,8 @@ def predict_framewise(model_path, vid_path, preds_path):
         ret, frame = vc.read()
         if not ret:
             break
+        frame[0:50, 0:160] = 0
+        plt.imshow(frame)
         frame = np.expand_dims(frame, axis=0)
         preprocessed_frame = AB_classifier_preprocess(frame, vgg16_preprocess)
         if model_ext == '.onnx':
@@ -63,6 +66,7 @@ def predict_framewise(model_path, vid_path, preds_path):
     pred_df = pd.DataFrame({'Frame': np.arange(preds.shape[0]), 'A lines': preds[:,0], 'B lines': preds[:,1]})
     pred_df.to_csv(preds_path, index=False)
     return preds
+
 
 # model_path = 'results/models/cutoffvgg16_final_cropped.h5'
 # model_path = 'results/models/ab_model_not_compiled/AB_classifier.onnx'

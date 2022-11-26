@@ -28,8 +28,6 @@ def mp4_to_images(mp4_path):
         os.makedirs(cfg['PATHS']['FRAMES'])
 
     idx = 0
-    max_area = 0
-    max_area_id = 0
     image_paths = []
 
     if not os.path.isdir(cfg['PATHS']['FRAMES']):
@@ -45,7 +43,7 @@ def mp4_to_images(mp4_path):
         idx += 1
     return image_paths
 
-def create_image_dataset(query_df_path,real_time_data=False):
+def create_image_dataset(query_df_path, real_time_data=False):
     '''
     Create a dataset of frames, including their patient ID (if not real-time data) and class
     :param query_df_path: File name of the CSV file containing the database query results for clips
@@ -62,7 +60,7 @@ def create_image_dataset(query_df_path,real_time_data=False):
                 clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
                                         'Class Name': cfg['DATA']['CLASSES'][row['class']]})
             else:
-                clip_df = pd.DataFrame({'Frame Path': image_paths, 'Patient': row['patient_id'], 'Class': row['class'],
+                clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
                                     'Class Name': cfg['DATA']['CLASSES'][row['class']]})
             clip_dfs.append(clip_df)
     all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
