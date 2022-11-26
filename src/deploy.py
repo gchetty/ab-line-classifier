@@ -24,7 +24,7 @@ def AB_classifier_preprocess(image, preprocessing_fn):
     N_CHANNELS = 3
     INPUT_SIZE = (128, 128)
 
-    # Resize image
+    # Resize image using the same interpolation method as was used during training
     resized_image = cv2.resize(image[0], INPUT_SIZE, interpolation=cv2.INTER_NEAREST)
     resized_image = resized_image.reshape((1, INPUT_SIZE[0], INPUT_SIZE[1], N_CHANNELS))
 

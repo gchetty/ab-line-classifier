@@ -25,8 +25,6 @@ def mp4_to_images(mp4_path):
     mp4_filename = mp4_filename.split('.')[0]       # Strip file extension
 
     idx = 0
-    max_area = 0
-    max_area_id = 0
     image_paths = []
     while (True):
         ret, frame = vc.read()
@@ -50,7 +48,6 @@ def create_image_dataset(query_df_path):
 
     for index, row in tqdm(query_df.iterrows()):
         print(row['Path'])
-        #print(glob.glob(row['Path']))
         for mp4_file in glob.glob(row['Path']):
             image_paths = mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
             clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],

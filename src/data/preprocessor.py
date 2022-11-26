@@ -2,6 +2,7 @@ import os
 
 import tensorflow as tf
 from tensorflow.keras.layers import Layer, RandomZoom, RandomTranslation, RandomRotation, RandomFlip
+from tensorflow.image import ResizeMethod
 import yaml
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
@@ -12,9 +13,10 @@ class Preprocessor:
     functionality, including resizing and data augmentation.
     '''
 
-    def __init__(self, scale_fn=None):
+    def __init__(self, scale_fn=None, resize_interpolation=ResizeMethod.NEAREST_NEIGHBOR):
         '''
-        :param preprocess_fn: Model-specific preprocessing function
+        :param scale_fn: Model-specific input scaling function
+        :param resize_interpolation: Interpolation method for image resizing
         '''
         self.batch_size = cfg['TRAIN']['BATCH_SIZE']
         self.n_classes = len(cfg['DATA']['CLASSES'])
@@ -29,6 +31,7 @@ class Preprocessor:
             RandomBrightness(factor=cfg['TRAIN']['DATA_AUG']['BRIGHTNESS_RANGE'])
         ])
         self.input_scaler = scale_fn
+        self.interpolation = resize_interpolation
 
     def prepare(self, ds, shuffle=False, augment=False):
         '''
@@ -74,7 +77,7 @@ class Preprocessor:
         image_decoded = tf.image.decode_jpeg(image_str, channels=3)
         image = tf.cast(image_decoded, tf.float32)
         ohe_label = tf.one_hot(label, self.n_classes)
-        return tf.image.resize(image, cfg['DATA']['IMG_DIM']), ohe_label
+        return tf.image.resize(image, cfg['DATA']['IMG_DIM'], method=self.interpolation), ohe_label
 
 
 

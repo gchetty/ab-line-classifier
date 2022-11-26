@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 from tensorflow.keras.layers import Activation, Conv2D, BatchNormalization
 
@@ -8,6 +10,7 @@ def initialize_with_pretrained_weights(model, weights_path):
     :param weights_path: A path to serialized model weights
     :return: A tf.keras model with weights initialized using pre-trained values
     '''
+    assert os.path.exists(weights_path), f"Could not find model weights at file path: {weights_path}"
     pretrained = tf.keras.models.load_model(weights_path, compile=False)
     if pretrained.layers[0].name == "model":
         pretrained = pretrained.layers[0]
@@ -33,6 +36,7 @@ def freeze_layers(model,  freeze_cutoff, freeze_bn=True):
         elif freeze_bn and (('batch' in model.layers[i].name) or ('bn' in model.layers[i].name)):
             model.layers[i].trainable = False         # Freeze batch norm layers
         else:
+            model.layers[i].trainable = True
             print(f"Layer {i}: {model.layers[i].name} not frozen")
     return model
 

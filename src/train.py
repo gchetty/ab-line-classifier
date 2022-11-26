@@ -141,7 +141,8 @@ def log_test_results(model, test_set, test_df, test_metrics, log_dir):
     return
 
 
-def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams, save_weights=False, log_dir=None, verbose=True):
+def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams, pretrained_path=None,
+                save_weights=False, log_dir=None, verbose=True):
     '''
 
     :param model_def: Model definition function
@@ -150,6 +151,7 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
     :param val_df: Validation set of LUS frames
     :param test_df: Test set of LUS frames
     :param hparams: Dict of hyperparameters
+    :param pretrained_path: Path to pretrained weights. If None, trains the network from scratch.
     :param save_weights: Flag indicating whether to save the model's weights
     :param log_dir: TensorBoard logs directory
     :param verbose: Whether to print out all epoch details
@@ -192,7 +194,7 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
     # Define the model
     model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
                       mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias,
-                      weights_path=cfg['PATHS']['PRETRAINED_WEIGHTS'])
+                      weights_path=pretrained_path)
 
     # Set training callbacks.
     callbacks = define_callbacks()
@@ -250,9 +252,12 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     if hparams is None:
         hparams = cfg['HPARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()]
 
+    # Optionally get path to pretrained weights
+    pretrained_path = cfg['PATHS']['PRETRAINED_WEIGHTS'] if cfg['TRAIN']['USE_PRETRAINED'] else None
+
     # Train the model
     model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
-                                         save_weights=save_weights, log_dir=log_dir)
+                                         save_weights=save_weights, log_dir=log_dir, pretrained_path=pretrained_path)
     print('Test set metrics: ', test_metrics)
     return test_metrics, model
 

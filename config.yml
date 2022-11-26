@@ -39,6 +39,7 @@ TRAIN:
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 10
   MEMORY_LIMIT: 21672
+  USE_PRETRAINED: False
   DATA_AUG:
     ZOOM_RANGE: 0.1
     HORIZONTAL_FLIP: true
