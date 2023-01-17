@@ -97,6 +97,9 @@ def create_ABline_dataframe(database_query):
     # Create filename
     df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_VID" + df["vid_id"].map(str)
 
+    # Remove filenames that are NaNs because one of the fields used to create the filename is null
+    df = df[df.filename.notnull()]
+
     # Create column of class category to each clip. 
     # Modifiable for binary or multi-class labelling
     df['class'] = df.apply(lambda row: 0 if row.a_or_b_lines == 'a_lines' else
@@ -123,5 +126,5 @@ def create_ABline_dataframe(database_query):
 
 
 if __name__ == "__main__":
-    create_rt_ABline_dataframe(lb_annot, b_lines_3_class)
-    #create_ABline_dataframe(database_query)
+    # create_rt_ABline_dataframe(lb_annot, b_lines_3_class)
+    create_ABline_dataframe(database_query)

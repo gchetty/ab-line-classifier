@@ -1,6 +1,7 @@
 # LOCAL ARTIFACTS ********************************************************************
 *.csv
 data/partitions/*
+data/raw_clips/*
 data/serializations/*
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
