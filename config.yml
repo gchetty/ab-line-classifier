@@ -4,7 +4,7 @@ PATHS:
   DATABASE_QUERY: 'data/parenchymal_clips.csv'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
-  FRAMES: 'B:/Datasets/AB/data_actually_cropped'
+  FRAMES: 'data/data_actually_cropped/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
@@ -23,7 +23,8 @@ PATHS:
   PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
-
+  AUTOMASK_URL: 'https://drive.google.com/drive/folders/1r_Zt_whrmZyeqlY16pdz9oEGxOYewm3o'
+  AUTOMASK_PATH: 'src/data'
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
