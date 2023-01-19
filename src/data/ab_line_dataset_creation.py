@@ -20,7 +20,7 @@ class ABLineDatasetCreation(DatasetCreation):
         super().__init__(cfg)
         self.database_cfg = database_cfg
 
-    def mp4_to_images(self, mp4_path) -> List[str]:
+    def mp4_to_images(self, mp4_path: str) -> List[str]:
         """
         Converts masked ultrasound mp4 video to a series of images and saves the images in the same directory.
         :param mp4_path: File name of the mp4 file to convert to series of images.
