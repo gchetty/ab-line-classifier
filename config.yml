@@ -38,11 +38,11 @@ DATA:
     SAVE_CROPPED_ROI: True
 
 TRAIN:
-  MODEL_DEF: 'mobilenetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
+  MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   SEED: 10001
   N_CLASSES: 2
-  BATCH_SIZE: 256
+  BATCH_SIZE: 64
   EPOCHS: 30
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores

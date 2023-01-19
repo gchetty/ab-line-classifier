@@ -70,7 +70,7 @@ def define_callbacks():
 
 def partition_dataset(val_split, test_split, save_dfs=True, seed=None):
     '''
-    Partition the frame_df into training, validation and test sets by patient ID
+    Partition the frame_df into training, validation and test sets by patient_id
     :param val_split: Validation split (in range [0, 1])
     :param test_split: Test split (in range [0, 1])
     :param save_dfs: Flag indicating whether to save the splits
@@ -78,14 +78,14 @@ def partition_dataset(val_split, test_split, save_dfs=True, seed=None):
     '''
 
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
-    all_pts = frame_df['Patient'].unique()  # Get list of patients
+    all_pts = frame_df['patient_id'].unique()  # Get list of patient_ids
     relative_val_split = val_split / (1 - (test_split))
     trainval_pts, test_pts = train_test_split(all_pts, test_size=test_split, random_state=seed)
     train_pts, val_pts = train_test_split(trainval_pts, test_size=relative_val_split, random_state=seed)
 
-    train_df = frame_df[frame_df['Patient'].isin(train_pts)]
-    val_df = frame_df[frame_df['Patient'].isin(val_pts)]
-    test_df = frame_df[frame_df['Patient'].isin(test_pts)]
+    train_df = frame_df[frame_df['patient_id'].isin(train_pts)]
+    val_df = frame_df[frame_df['patient_id'].isin(val_pts)]
+    test_df = frame_df[frame_df['patient_id'].isin(test_pts)]
 
     if not os.path.exists(cfg['PATHS']['PARTITIONS']):
         os.makedirs(cfg['PATHS']['PARTITIONS'])
@@ -234,11 +234,11 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     :param write_logs: Flag indicating whether to write any training logs to disk
     :return: Dictionary of test set performance metrics
     '''
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        for gpu in gpus:
-            tf.config.experimental.set_virtual_device_configuration(gpu, [
-                tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
+    # gpus = tf.config.list_physical_devices('GPU')
+    # if gpus:
+    #     for gpu in gpus:
+    #         tf.config.experimental.set_virtual_device_configuration(gpu, [
+    #             tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
     train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'],
                                                   seed=cfg['TRAIN']['SEED'])
@@ -295,7 +295,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     else:
         log_dir = None
 
-    all_pts = frame_df['Patient'].unique()
+    all_pts = frame_df['patient_id'].unique()
     val_split = 1.0 / n_folds
     pt_k_fold = KFold(n_splits=n_folds, shuffle=True)
 
@@ -314,9 +314,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
         trainval_pts = all_pts[train_index]
         train_pts, val_pts = train_test_split(trainval_pts, test_size=val_split)
         test_pts = all_pts[test_index]
-        train_df = frame_df[frame_df['Patient'].isin(train_pts)]
-        val_df = frame_df[frame_df['Patient'].isin(val_pts)]
-        test_df = frame_df[frame_df['Patient'].isin(test_pts)]
+        train_df = frame_df[frame_df['patient_id'].isin(train_pts)]
+        val_df = frame_df[frame_df['patient_id'].isin(val_pts)]
+        test_df = frame_df[frame_df['patient_id'].isin(test_pts)]
         train_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_train_set.csv'))
         val_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_val_set.csv'))
         test_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_test_set.csv'))
