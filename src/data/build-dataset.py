@@ -60,7 +60,7 @@ def create_image_dataset(query_df_path, real_time_data=False):
                 clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
                                         'Class Name': cfg['DATA']['CLASSES'][row['class']]})
             else:
-                clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
+                clip_df = pd.DataFrame({'Frame Path': image_paths, 'patient_id': row['patient_id'], 'Class': row['class'],
                                     'Class Name': cfg['DATA']['CLASSES'][row['class']]})
             clip_dfs.append(clip_df)
     all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
@@ -70,7 +70,7 @@ def create_image_dataset(query_df_path, real_time_data=False):
 
 
 if __name__=='__main__':
-    create_rt_image_dataset(cfg['PATHS']['CLIPS_TABLE'])
+    create_image_dataset(cfg['PATHS']['CLIPS_TABLE'], False)
 
 
 
