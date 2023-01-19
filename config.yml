@@ -1,7 +1,7 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patients_cropped.csv'
   FRAME_TABLE: 'data/frames_actually_cropped.csv' #'data/frames.csv'   # Path to all LUS frames in the dataset
-  DATABASE_QUERY: 'data/parenchymal_clips.csv'
+  DATABASE_QUERY: 'data/clips_query.sql'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
   FRAMES: 'data/data_actually_cropped/'
@@ -23,14 +23,19 @@ PATHS:
   PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
-  AUTOMASK_URL: 'https://drive.google.com/drive/folders/1r_Zt_whrmZyeqlY16pdz9oEGxOYewm3o'
-  AUTOMASK_PATH: 'src/data'
+  AUTOMASK_MODEL_PATH: 'data/auto_masking_deeper.h5'
+
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
   RT_B_LINES_3_CLASS: 'b_lines'
+  REAL_TIME_DATA: False
+  AUTOMASK:
+    OUTPUT_FORMAT: 'mp4'
+    EDGE_PRESERVE: 0.95
+    SAVE_CROPPED_ROI: True
 
 TRAIN:
   MODEL_DEF: 'mobilenetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
