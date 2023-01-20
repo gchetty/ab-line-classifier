@@ -14,7 +14,7 @@ from src.data.auto_masking import UnetSegmentation
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
 class DatasetCreation(ABC):
-    def __init__(self, cfg: Dict) -> None:
+    def __init__(self, cfg: Dict[str, str]) -> None:
         self.cfg = cfg
         
     # takes the dataset from sql query csv to a full dataset artifact

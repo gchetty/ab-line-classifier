@@ -4,6 +4,7 @@ database_config.yml
 # LOCAL ARTIFACTS ********************************************************************
 *.csv
 *.h5
+wandb/*
 data/partitions/*
 data/raw_clips/*
 data/masked_clips/*

@@ -64,10 +64,12 @@ class ABLineDatasetCreation(DatasetCreation):
                     clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
                                             'Class Name': cfg['DATA']['CLASSES'][row['class']]})
                 else:
+                    # Note that the id is key to linking the clips and image tables in dataset artifacts
                     clip_df = pd.DataFrame(
                         {'Frame Path': image_paths, 'patient_id': row['patient_id'], 'Class': row['class'],
-                         'Class Name': cfg['DATA']['CLASSES'][row['class']]})
+                         'Class Name': cfg['DATA']['CLASSES'][row['class']], 'id': row['id']})
                 clip_dfs.append(clip_df)
+
         all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
         all_clips_df.to_csv(cfg['PATHS']['FRAME_TABLE'], index=False)
         return
@@ -78,7 +80,7 @@ class ABLineDatasetCreation(DatasetCreation):
         and class
         """
 
-        COLUMNS_WANTED = ['patient_id', 'a_or_b_lines']
+        COLUMNS_WANTED = ['patient_id', 'a_or_b_lines', 'id']
 
         # Get database configs
         user = self.database_cfg['USERNAME']
@@ -100,6 +102,8 @@ class ABLineDatasetCreation(DatasetCreation):
 
         else:
             logging.error("Couldn't connect to database")
+
+        df.to_csv(self.cfg['PATHS']['QUERY_TABLE'], index=False)
 
         # Remove all muggle clips
         df = df[df.frame_homogeneity.isnull()]

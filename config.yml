@@ -1,6 +1,7 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patients_cropped.csv'
   FRAME_TABLE: 'data/frames_actually_cropped.csv' #'data/frames.csv'   # Path to all LUS frames in the dataset
+  QUERY_TABLE: 'data/clips.csv'
   DATABASE_QUERY: 'data/clips_query.sql'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
@@ -24,15 +25,28 @@ PATHS:
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
   AUTOMASK_MODEL_PATH: 'data/auto_masking_deeper.h5'
+  HOLDOUT_CLIPS_PATH: 'data/holdout_clips.csv'
+  HOLDOUT_IMAGES_PATH: 'data/holdout_images.csv'
+  MODEL_DEV_CLIPS_PATH: 'data/model_dev_clips.csv'
+  MODEL_DEV_IMAGES_PATH: 'data/model_dev_images.csv'
+
+
+WANDB:
+  ENTITY: 'deep-breathe'
+  PROJECT_NAME: 'ab_line'
+  IMAGES_ARTIFACT_VERSION: ''
+  ARTIFACT_SEED: 42
 
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
+  HOLDOUT_ARTIFACT_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
   RT_B_LINES_3_CLASS: 'b_lines'
   REAL_TIME_DATA: False
   AUTOMASK:
+    VERSION: 'wavebase'
     OUTPUT_FORMAT: 'mp4'
     EDGE_PRESERVE: 0.95
     SAVE_CROPPED_ROI: True
