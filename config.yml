@@ -42,6 +42,7 @@ WANDB:
     TRAIN_TEST_VAL: False
   IMAGES_ARTIFACT_VERSION: ''
   MODEL_DEV_ARTIFACT_VERSION: ''
+  TRAIN_VAL_TEST_ARTIFACT_VERSION: ''
   ARTIFACT_SEED: 42
 
 DATA:
@@ -68,6 +69,7 @@ TRAIN:
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
   N_FOLDS: 5
+  USE_MEMORY_LIMIT: False
   MEMORY_LIMIT: 21672
   USE_PRETRAINED: False
   DATA_AUG:

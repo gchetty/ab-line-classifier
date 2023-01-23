@@ -37,7 +37,7 @@ def get_rt_masked_clip_paths():
     return path_df
 
 
-def create_rt_ABline_dataframe(lb_annot,b_lines_3_class, preprocessed=False):
+def create_rt_ABline_dataframe(lb_annot, b_lines_3_class, preprocessed=False):
     '''
     Extracts pertinent information from Labelbox expert annotations and builds a dataframe linking clips, class, and their path
 
