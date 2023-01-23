@@ -29,12 +29,19 @@ PATHS:
   HOLDOUT_IMAGES_PATH: 'data/holdout_images.csv'
   MODEL_DEV_CLIPS_PATH: 'data/model_dev_clips.csv'
   MODEL_DEV_IMAGES_PATH: 'data/model_dev_images.csv'
+  K_FOLDS_SPLIT_PATH: 'data/'
 
 
 WANDB:
   ENTITY: 'deep-breathe'
   PROJECT_NAME: 'ab_line'
+  LOGGING:
+    IMAGES: False
+    MODEL_DEV_HOLDOUT: False
+    K_FOLD_CROSS_VAL: False
+    TRAIN_TEST_VAL: False
   IMAGES_ARTIFACT_VERSION: ''
+  MODEL_DEV_ARTIFACT_VERSION: ''
   ARTIFACT_SEED: 42
 
 DATA:
@@ -60,7 +67,7 @@ TRAIN:
   EPOCHS: 30
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
-  N_FOLDS: 10
+  N_FOLDS: 5
   MEMORY_LIMIT: 21672
   USE_PRETRAINED: False
   DATA_AUG:
