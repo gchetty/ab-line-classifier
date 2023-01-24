@@ -60,14 +60,10 @@ class ABLineDatasetCreation(DatasetCreation):
         for index, row in tqdm(query_df.iterrows()):
             for mp4_file in glob.glob(row['Path'] + '/' + row['filename'] + '.mp4'):
                 image_paths = self.mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
-                if self.cfg['DATA']['REAL_TIME_DATA']:  # Real-time clips aren't associated with patient IDs
-                    clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
-                                            'Class Name': cfg['DATA']['CLASSES'][row['class']]})
-                else:
-                    # Note that the id is key to linking the clips and image tables in dataset artifacts
-                    clip_df = pd.DataFrame(
-                        {'Frame Path': image_paths, 'patient_id': row['patient_id'], 'Class': row['class'],
-                         'Class Name': cfg['DATA']['CLASSES'][row['class']], 'id': row['id']})
+                # Note that the id is key to linking the clips and image tables in dataset artifacts
+                clip_df = pd.DataFrame(
+                    {'Frame Path': image_paths, 'patient_id': row['patient_id'], 'Class': row['class'],
+                     'Class Name': cfg['DATA']['CLASSES'][row['class']], 'id': row['id']})
                 clip_dfs.append(clip_df)
 
         all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
