@@ -97,7 +97,7 @@ def train_model_single(cfg, model_def, preprocessing_fn, train_df, val_df, test_
 
     # Apply class imbalance strategy. We have many more X-rays negative for COVID-19 than positive.
     histogram = np.bincount(train_df['Class'].to_numpy().astype(int))  # Get class distribution
-    class_weight = get_class_weights(histogram)
+    class_weight = get_class_weights_wandb(histogram)
 
     # Define performance metrics
     n_classes = len(cfg['DATA']['CLASSES'])
@@ -106,9 +106,13 @@ def train_model_single(cfg, model_def, preprocessing_fn, train_df, val_df, test_
     metrics += [Precision(name='precision_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
     metrics += [Recall(name='recall_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
 
-    print('Training distribution: ',
-          ['Class ' + cfg['DATA']['CLASSES'][i] + ': ' + str(histogram[i]) + '. '
-           for i in range(len(histogram))])
+    # Log distribution data to WandB
+    distribution_table = wandb.Table(
+        columns=['Class', 'Num Samples'],
+        data=[[cfg['DATA']['CLASSES'][i], histogram[i]] for (i, hist_data) in enumerate(histogram)]
+    )
+    wandb.log({'Training distribution': distribution_table})
+
     input_shape = cfg['DATA']['IMG_DIM'] + [3]
 
     # Compute output bias
@@ -160,6 +164,23 @@ def get_class_weights(histogram):
         weights[i] = (1.0 / len(histogram)) * sum(histogram) / histogram[i]
     class_weight = {i: weights[i] for i in range(len(histogram))}
     print("Class weights: ", class_weight)
+    return class_weight
+
+def get_class_weights_wandb(histogram):
+    '''
+    Computes weights for each class to be applied in the loss function during training.
+    :param histogram: A list depicting the number of each item in different class
+    :param class_multiplier: List of values to multiply the calculated class weights by. For further control of class weighting.
+    :return: A dictionary containing weights for each class
+    '''
+    weights = [None] * len(histogram)
+    for i in range(len(histogram)):
+        weights[i] = (1.0 / len(histogram)) * sum(histogram) / histogram[i]
+    class_weight = {i: weights[i] for i in range(len(histogram))}
+    # Log distribution data to WandB
+    class_weight_table = wandb.Table(columns=['Class', 'Weight'],
+                                     data=[[i, weights[i]] for i in range(len(histogram))])
+    wandb.log({'Class Weight': class_weight_table})
     return class_weight
 
 
@@ -385,6 +406,7 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     model, test_metrics, _ = train_model_single(cfg, model_def, preprocessing_fn, train_df, val_df, test_df, frames_dir,
                                                 hparams, save_weights=save_weights, log_dir=log_dir,
                                                 pretrained_path=pretrained_path)
+
     print('Test set metrics: ', test_metrics)
 
     wandb.finish()
