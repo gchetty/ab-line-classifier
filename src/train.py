@@ -2,7 +2,7 @@ import os
 import datetime
 import numpy as np
 from math import ceil
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Callable, Union
 
 import gc
 import sys
@@ -29,79 +29,33 @@ import wandb
 from src.models.models import *
 from src.visualization.visualization import *
 from src.data.preprocessor import Preprocessor
+from src.train_utils import get_train_val_test_artifact, get_datasets
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
 for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
 
-def get_training_artifacts(
-        run: wandb.sdk.wandb_run,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+
+def compute_class_weight(train_df: pd.DataFrame) -> Dict:
     """
-    Get training, validation and test DataFrames from wandb artifact registry
-    :param run: wandb run
-    :return: (Training DataFrame, validation DataFrame, test DataFrame)
-    """
-
-    # uses the latest version of Images artifact if no version is specified
-    train_val_test_version = cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'] if \
-        cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'] else 'latest'
-
-    # downloads previously logged artifacts
-    train_val_test_artifact = run.use_artifact(f'TrainValTest:{train_val_test_version}')
-    model_dev_artifact_version = train_val_test_artifact.metadata['model_dev_artifact_version']
-    model_dev_artifact = run.use_artifact(f'ModelDev:{model_dev_artifact_version}')
-    images_artifact_version = model_dev_artifact.metadata['images_artifact_version']
-    images_artifact = run.use_artifact(f'Images:{images_artifact_version}')
-
-    frames_dir = f"{images_artifact.download()}/images"
-    train_val_test_images_path = f"{train_val_test_artifact.download()}/images"
-
-    train_df = pd.read_csv(f"{train_val_test_images_path}/train.csv")
-    val_df = pd.read_csv(f"{train_val_test_images_path}/val.csv")
-    test_df = pd.read_csv(f"{train_val_test_images_path}/test.csv")
-
-    return train_df, val_df, test_df, frames_dir
-
-
-def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, frames_dir, hparams,
-                       pretrained_path=None, save_weights=False, log_dir=None, verbose=True):
-    """
-    :param model_def: Model definition function
-    :param preprocessing_fn: Model-specific preprocessing function
-    :param train_df: Training set of LUS frames
-    :param val_df: Validation set of LUS frames
-    :param test_df: Test set of LUS frames
-    :param hparams: Dict of hyperparameters
-    :param pretrained_path: Path to pretrained weights. If None, trains the network from scratch.
-    :param save_weights: Flag indicating whether to save the model's weights
-    :param log_dir: TensorBoard logs directory
-    :param verbose: Whether to print out all epoch details
-    :return: (model, test_metrics, test_generator)
+    Computes weights for each class to be applied in the loss function during training. For class imbalance strategy.
+    :param train_df: training DataFrame
+    :return: A dictionary containing weights for each class
     """
 
-    # Create TF datasets for training, validation and test sets
-    train_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in train_df['Frame Path'].tolist()], train_df['Class']))
-    val_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in val_df['Frame Path'].tolist()], val_df['Class']))
-    test_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in test_df['Frame Path'].tolist()], test_df['Class']))
+    # Get class distribution
+    histogram = np.bincount(train_df['Class'].to_numpy().astype(int))
 
-    # Set up preprocessing transformations to apply to each item in dataset
-    preprocessor = Preprocessor(preprocessing_fn)
-    train_set = preprocessor.prepare(train_set, shuffle=True, augment=True)
-    val_set = preprocessor.prepare(val_set, shuffle=False, augment=False)
-    test_set = preprocessor.prepare(test_set, shuffle=False, augment=False)
+    weights = [None] * len(histogram)
+    for i in range(len(histogram)):
+        weights[i] = (1.0 / len(histogram)) * sum(histogram) / histogram[i]
+    class_weight = {i: weights[i] for i in range(len(histogram))}
 
-    # Apply class imbalance strategy. We have many more X-rays negative for COVID-19 than positive.
-    histogram = np.bincount(train_df['Class'].to_numpy().astype(int))  # Get class distribution
-    class_weight = get_class_weights(histogram)
-
-    # Define performance metrics
-    n_classes = len(cfg['DATA']['CLASSES'])
-    threshold = 1.0 / n_classes # Binary classification threshold for a class
-    metrics = ['accuracy', AUC(name='auc')]
-    metrics += [Precision(name='precision_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
-    metrics += [Recall(name='recall_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
+    # Log class weight data to WandB
+    class_weight_table = wandb.Table(columns=['Class', 'Weight'],
+                                     data=[[i, weights[i]] for i in range(len(histogram))])
+    wandb.log({'Class Weight': class_weight_table})
 
     # Log distribution data to WandB
     distribution_table = wandb.Table(
@@ -110,14 +64,56 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, frames_d
     )
     wandb.log({'Training distribution': distribution_table})
 
-    input_shape = cfg['DATA']['IMG_DIM'] + [3]
+    return class_weight
 
+
+def compute_output_bias(train_df: pd.DataFrame) -> Constant:
+    """
+    Determines the bias on the model final layer
+    :param train_df: training DataFrame
+    :return: initializer that has constant values corresponding to the bias value
+    """
     # Compute output bias
     histogram = np.bincount(train_df['Class'].astype(int))
     output_bias = Constant(np.log([histogram[i] / (np.sum(histogram) - histogram[i])
-                                      for i in range(histogram.shape[0])]))
+                                   for i in range(histogram.shape[0])]))
+    return output_bias
+
+
+def train_classifier(
+        model_def: tf.data.Dataset,
+        train_set: tf.data.Dataset,
+        val_set: tf.data.Dataset,
+        hparams: Dict,
+        output_bias: Constant,
+        class_weight: Dict,
+        pretrained_path: str = None,
+        save_weights: bool = False,
+        verbose: bool = True):
+    """
+    :param model_def: Model definition function
+    :param train_set: Training set of LUS frames
+    :param val_set: Validation set of LUS frames
+    :param hparams: Dict of hyperparameters
+    :param output_bias: bias on the model final layer
+    :param class_weight: a dictionary containing weights for each class
+    :param pretrained_path: Path to pretrained weights. If None, trains the network from scratch.
+    :param save_weights: Flag indicating whether to save the model's weights
+    :param verbose: Whether to print out all epoch details
+    :return: (model)
+    """
+
+    # Define performance metrics
+    n_classes = len(cfg['DATA']['CLASSES'])
+    threshold = 1.0 / n_classes  # Binary classification threshold for a class
+    metrics = ['accuracy', AUC(name='auc')]
+    metrics += [Precision(name='precision_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in
+                range(n_classes)]
+    metrics += [Recall(name='recall_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in
+                range(n_classes)]
 
     # Define the model
+    input_shape = cfg['DATA']['IMG_DIM'] + [3]
     model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
                       mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias,
                       weights_path=pretrained_path)
@@ -127,7 +123,7 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, frames_d
 
     # Train the model.
     history = model.fit(train_set, epochs=cfg['TRAIN']['EPOCHS'], validation_data=val_set, callbacks=callbacks,
-                         verbose=verbose, class_weight=class_weight)
+                        verbose=verbose, class_weight=class_weight)
 
     # Save the model's weights
     if save_weights:
@@ -137,33 +133,7 @@ def train_model(model_def, preprocessing_fn, train_df, val_df, test_df, frames_d
         else:
             save_model(model, model_path)  # Save the model's weights
 
-    # Run the model on the test set and print the resulting performance metrics.
-    test_results = model.evaluate(test_set, verbose=1)
-    test_metrics = {}
-    test_summary_str = [['**Metric**', '**Value**']]
-    for metric, value in zip(model.metrics_names, test_results):
-        test_metrics[metric] = value
-        test_summary_str.append([metric, str(value)])
-    if log_dir is not None:
-        log_test_results(model, test_set, test_df, test_metrics, log_dir)
-    return model, test_metrics, test_set
-
-def get_class_weights(histogram):
-    '''
-    Computes weights for each class to be applied in the loss function during training.
-    :param histogram: A list depicting the number of each item in different class
-    :param class_multiplier: List of values to multiply the calculated class weights by. For further control of class weighting.
-    :return: A dictionary containing weights for each class
-    '''
-    weights = [None] * len(histogram)
-    for i in range(len(histogram)):
-        weights[i] = (1.0 / len(histogram)) * sum(histogram) / histogram[i]
-    class_weight = {i: weights[i] for i in range(len(histogram))}
-    # Log distribution data to WandB
-    class_weight_table = wandb.Table(columns=['Class', 'Weight'],
-                                     data=[[i, weights[i]] for i in range(len(histogram))])
-    wandb.log({'Class Weight': class_weight_table})
-    return class_weight
+    return model
 
 
 def define_callbacks():
@@ -187,16 +157,22 @@ def define_callbacks():
 
     return callbacks
 
-def log_test_results(model, test_set, test_df, test_metrics, log_dir):
-    '''
+
+def log_test_results(model, test_set, test_df):
+    """
     Visualize performance of a trained model on the test set. Optionally save the model.
     :param model: A trained TensorFlow model
-    :param test_set: A tf.data Dataset for the test set
+    :param test_set: Test set of LUS frames
     :param test_df: A pd.DataFrame containing frame paths and labels for the test set
-    :param test_metrics: Dict of test set performance metrics
-    :param log_dir: Path to write TensorBoard logs
-    '''
+    """
 
+    # Run the model on the test set and print the resulting performance metrics.
+    test_results = model.evaluate(test_set, verbose=1)
+    test_metrics = {}
+    for metric, value in zip(model.metrics_names, test_results):
+        wandb.log[f"test/{metric}"] = value
+
+    print(test_metrics)
     # Visualization of test results
     test_predictions = model.predict(test_set, verbose=0)
     test_labels = test_df['Class']
@@ -204,15 +180,17 @@ def log_test_results(model, test_set, test_df, test_metrics, log_dir):
     roc_img = plot_to_tensor()
     plt = plot_confusion_matrix(test_labels, test_predictions, cfg['DATA']['CLASSES'], dir_path=cfg['PATHS']['IMAGES'])
     cm_img = plot_to_tensor()
-
-    # Log test set results and plots in TensorBoard
-    writer = tf.summary.create_file_writer(logdir=log_dir)
+    #
+    # # Log test set results and plots in TensorBoard
+    # writer = tf.summary.create_file_writer(logdir=log_dir)
 
     # Create table of test set metrics
-    test_summary_str = [['**Metric**','**Value**']]
+    test_summary_str = [['**Metric**', '**Value**']]
     for metric in test_metrics:
         metric_values = test_metrics[metric]
         test_summary_str.append([metric, str(metric_values)])
+
+    print(test_metrics)
 
     # Create table of model and train hyperparameters used in this experiment
     hparam_summary_str = [['**Variable**', '**Value**']]
@@ -229,7 +207,8 @@ def log_test_results(model, test_set, test_df, test_metrics, log_dir):
         tf.summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
     return
 
-def train_single(hparams=None, save_weights=False, write_logs=False):
+
+def perform_single_run(hparams=None, save_weights=False, write_logs=False):
     '''
     Train a single model. Use the passed hyperparameters if possible; otherwise, use those in config.
     :param hparams: Dict of hyperparameters
@@ -238,6 +217,7 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     :return: Dictionary of test set performance metrics
     '''
 
+    # Hardware configuration
     # If configuration is set, the model will train with a specified memory limit
     if cfg['TRAIN']['USE_MEMORY_LIMIT']:
         gpus = tf.config.list_physical_devices('GPU')
@@ -268,34 +248,40 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
             if hparam not in hparams:
                 hparams[hparam] = cfg['HPARAMS'][model_name][hparam]
 
-
-    train_df, val_df, test_df, frames_dir = get_training_artifacts(run)
-
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
     if write_logs:
         log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     else:
         log_dir = None
 
+    # Get TrainValTest artifact from wandb
+    train_df, val_df, test_df, frames_dir = get_train_val_test_artifact(run,
+                                                                        cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'])
+
+    # Get datasets for training
+    train_set, val_set, test_set = get_datasets(train_df, val_df, test_df, frames_key='Frame Path', target_key='Class',
+                                                frames_dir=frames_dir, preprocessing_class=Preprocessor,
+                                                preprocessing_fn=preprocessing_fn)
+
+    # Determine class weight and output_bias to manage class_imbalances
+    class_weight = compute_class_weight(train_df)
+    output_bias = compute_output_bias(train_df)
+
     # Optionally get path to pretrained weights
     pretrained_path = cfg['PATHS']['PRETRAINED_WEIGHTS'] if cfg['TRAIN']['USE_PRETRAINED'] else None
 
     # Train the model
-    model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, frames_dir,
-                                                hparams, save_weights=save_weights, log_dir=log_dir,
-                                                pretrained_path=pretrained_path)
+    model = train_classifier(model_def, train_set, val_set, hparams, output_bias=output_bias, class_weight=class_weight,
+                             pretrained_path=pretrained_path, save_weights=save_weights)
 
-    print('Test set metrics: ', test_metrics)
+    log_test_results(model, test_set, test_df)
 
     wandb.finish()
 
-    return test_metrics, model
 
-
-def bayesian_hparam_optimization():
+def configure_hyperparameter_sweep() -> None:
     """
-    Conducts a Bayesian hyperparameter optimization, given the parameter ranges and selected model
-    :return: Dict of hyperparameters deemed optimal
+    Translates experiment configuration into a wandb sweep configuration
     """
 
     sweep_cfg = {
@@ -307,6 +293,7 @@ def bayesian_hparam_optimization():
         'parameters': {}
     }
 
+    # Translation from config parameters to wandb sweep configuration parameters
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     for hparam_name in cfg['HPARAM_SEARCH'][model_name]:
         if cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'] is not None:
@@ -328,6 +315,7 @@ def bayesian_hparam_optimization():
                 parameter_config['max'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][1]
             sweep_cfg['parameters'][hparam_name] = parameter_config
 
+    # Initialize sweep
     sweep_id = wandb.sweep(
         project=cfg['WANDB']['PROJECT_NAME'],
         entity=cfg['WANDB']['ENTITY'],
@@ -335,6 +323,7 @@ def bayesian_hparam_optimization():
     )
 
     return sweep_id
+
 
 def train_experiment(experiment='single_train', save_weights=False, write_logs=False):
     '''
@@ -346,10 +335,10 @@ def train_experiment(experiment='single_train', save_weights=False, write_logs=F
 
     # Conduct the desired train experiment
     if experiment == 'single_train':
-        train_single(save_weights=save_weights, write_logs=write_logs)
+        perform_single_run(save_weights=save_weights, write_logs=write_logs)
     elif experiment == 'hparam_search':
-        sweep_id = bayesian_hparam_optimization()
-        wandb.agent(sweep_id, function=train_single, count=4)
+        sweep_id = configure_hyperparameter_sweep()
+        wandb.agent(sweep_id, function=perform_single_run, count=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'])
     elif experiment == 'cross_validation':
         pass
     else:
@@ -357,5 +346,5 @@ def train_experiment(experiment='single_train', save_weights=False, write_logs=F
     return
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     train_experiment(cfg['TRAIN']['EXPERIMENT_TYPE'], write_logs=True, save_weights=True)
