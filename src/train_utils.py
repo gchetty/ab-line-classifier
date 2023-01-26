@@ -153,26 +153,49 @@ def initialize_wandb_run(
     return run
 
 
-def get_k_folds_artifact(
+def get_n_folds(
         project_name: str,
         entity_name: str,
         artifact_version: str,
-) -> Tuple[str, str, int]:
+) -> int:
     """
-    Download KFoldCrossValidation artifact, associated Images artifact and return dataset directories and n_folds
+    Gets the number of folds in the KFoldCrossValidation artifact
     :param project_name: name of wandb project
     :param entity_name: name of wandb entity
     :param artifact_version: version of artifact stored in wandb
-    :return: (path to frames, path to fold csvs, number of folds in the KFoldCrossValidation artifact)
+    :return: number of folds in the KFoldCrossValidation artifact
     """
 
     run = wandb.init(
         project=project_name,
         entity=entity_name,
-        job_type="fetch_k_folds",
+        job_type="fetch_n_folds",
     )
 
     # uses the latest version of Images artifact if no version is specified
+    k_folds_version = artifact_version if artifact_version else 'latest'
+
+    # downloads previously logged artifacts
+    k_folds_artifact = run.use_artifact(f'KFoldCrossValidation:{k_folds_version}')
+    n_folds = k_folds_artifact.metadata['n_folds']
+
+    wandb.finish()
+
+    return n_folds
+
+def get_fold_artifact(
+        run: wandb.sdk.wandb_run,
+        artifact_version: str,
+        fold_id: int
+) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame], str]:
+    """
+    Get training, validation, test DataFrames and frames path from wandb KFoldCrossValidation artifact for given fold
+    :param run: wandb run
+    :param artifact_version: version of artifact stored in wandb
+    :param fold_id: id of validation fold
+    :return: (training DataFrame, validation DataFrame, test DataFrame, path to frames)
+    """
+
     k_folds_version = artifact_version if artifact_version else 'latest'
 
     # downloads previously logged artifacts
@@ -184,26 +207,10 @@ def get_k_folds_artifact(
 
     frames_dir = f"{images_artifact.download()}/images"
     k_folds_dir = f"{k_folds_artifact.download()}"
-    n_folds = k_folds_artifact.metadata['n_folds']
 
-    wandb.finish()
-
-    return frames_dir, k_folds_dir, n_folds
-
-def get_fold_df(
-        k_folds_dir: str,
-        fold_id: int
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Uses k_folds artifact directory and fold_id to generate train and validation DataFrames for cross-validation
-    iteration
-    :param k_folds_dir: path to k_folds artifact
-    :param fold_id: id of validation fold
-    :return: (training DataFrame, validation DataFrame)
-    """
-
+    # Create a train_df from all folds except validation fold
     train_dfs = []
-
+    val_df = None
     for filename in os.listdir(k_folds_dir):
         cur_fold_id = int(filename.split('_')[-1])
         fold_images_path = os.path.join(k_folds_dir, filename, 'images.csv')
@@ -211,7 +218,9 @@ def get_fold_df(
             val_df = pd.read_csv(fold_images_path)
         else:
             train_dfs.append(pd.read_csv(fold_images_path))
-
     train_df = pd.concat(train_dfs)
 
-    return train_df, val_df
+    # No test_df for k-fold cross-validation
+    test_df = None
+
+    return train_df, val_df, test_df, frames_dir
