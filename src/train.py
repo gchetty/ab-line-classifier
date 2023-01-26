@@ -2,7 +2,7 @@ import os
 import datetime
 import numpy as np
 from math import ceil
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 
 import gc
 import sys
@@ -82,7 +82,7 @@ def compute_output_bias(train_df: pd.DataFrame) -> Constant:
 
 
 def train_classifier(
-        model_def: tf.data.Dataset,
+        model_def: Callable,
         train_set: tf.data.Dataset,
         val_set: tf.data.Dataset,
         hparams: Dict,
@@ -160,7 +160,6 @@ def define_callbacks():
 
 
 def perform_single_run(
-        hparams=None,
         save_weights: bool = False,
         group_id: Optional[str] = None,
         fold_id: Optional[int] = None,
@@ -169,7 +168,6 @@ def perform_single_run(
 ) -> None:
     """
     Used to perform a single training run. Used in a variety of contexts - single training, cross-val, hyper-param search
-    :param hparams: Dict of hyperparameters
     :param save_weights: Flag indicating whether to save the model's weights
     :param group_id: Optional string indicates a group id for the training run, used only for cross-validation
     :param fold_id: Optional fold id which specifies fold for validation, used only for cross-validation
@@ -191,20 +189,15 @@ def perform_single_run(
     run = initialize_wandb_run(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
                                experiment_type=cfg['TRAIN']['EXPERIMENT_TYPE'], group_id=group_id)
 
+    # Code to get default hyperparameters from config unless overridden by sweep
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
-    if cfg['TRAIN']['EXPERIMENT_TYPE'] == 'hparam_search':
-        hparams = wandb.config
-    else:
-        wandb.config.update(cfg)
+    run.config.setdefaults(cfg['HPARAMS'][model_name])
+    hparams = wandb.config
 
-    # Used to specify hyperparameters if not specified or to add hyperparameters being held constant during
-    # hyperparameter search
-    if hparams is None:
-        hparams = cfg['HPARAMS'][model_name]
-    else:
-        for hparam in cfg['HPARAMS'][model_name]:
-            if hparam not in hparams:
-                hparams[hparam] = cfg['HPARAMS'][model_name][hparam]
+    # Store additional configuration information in wandb run
+    wandb.config.update(cfg)
+    if fold_id is not None:
+        wandb.config.update({"FOLD_ID": fold_id})
 
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
 
