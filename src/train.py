@@ -30,7 +30,7 @@ from src.models.models import *
 from src.visualization.visualization import *
 from src.data.preprocessor import Preprocessor
 from src.train_utils import get_train_val_test_artifact, get_datasets, generate_classification_test_results, \
-    initialize_wandb_run, get_fold_artifact, get_n_folds
+    initialize_wandb_run, get_fold_artifact, get_n_folds, WandbGradcamEvalCallback
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -120,7 +120,14 @@ def train_classifier(
                       weights_path=pretrained_path)
 
     # Set training callbacks.
-    callbacks = define_callbacks()
+    callbacks = define_callbacks(cfg['TRAIN']['LOG_FREQ'])
+    callbacks.append(
+        WandbGradcamEvalCallback(
+            val_set=val_set,
+            data_table_columns=['idx', 'image', 'label'],
+            pred_table_columns=['epoch', 'idx', 'image', 'label', 'probs', 'pred']
+        )
+    )
 
     # Train the model.
     history = model.fit(train_set, epochs=cfg['TRAIN']['EPOCHS'], validation_data=val_set, callbacks=callbacks,
@@ -137,10 +144,10 @@ def train_classifier(
     return model
 
 
-def define_callbacks():
+def define_callbacks(log_freq: int):
     '''
     Defines a list of Keras callbacks to be applied to model training loop
-    :param cfg: Project config object
+    :param log_freq: integer that represents after how many batches metrics are logged on wandb
     :return: list of Keras callbacks
     '''
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
@@ -154,7 +161,7 @@ def define_callbacks():
             gc.collect()
             k.clear_session()
 
-    callbacks = [early_stopping, reduce_lr, ClearMemory(), WandbMetricsLogger()]
+    callbacks = [early_stopping, reduce_lr, ClearMemory(), WandbMetricsLogger(log_freq=log_freq)]
 
     return callbacks
 
