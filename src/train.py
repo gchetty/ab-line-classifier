@@ -2,7 +2,7 @@ import os
 import datetime
 import numpy as np
 from math import ceil
-from typing import Tuple, Dict, Callable, Union
+from typing import Dict, Optional
 
 import gc
 import sys
@@ -29,7 +29,8 @@ import wandb
 from src.models.models import *
 from src.visualization.visualization import *
 from src.data.preprocessor import Preprocessor
-from src.train_utils import get_train_val_test_artifact, get_datasets
+from src.train_utils import get_train_val_test_artifact, get_datasets, generate_classification_test_results, \
+    initialize_wandb_run, get_k_folds_artifact, get_fold_df
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -158,64 +159,24 @@ def define_callbacks():
     return callbacks
 
 
-def log_test_results(model, test_set, test_df):
+def perform_single_run(
+        hparams=None,
+        save_weights: bool = False,
+        group_id: Optional[str] = None,
+        fold_id: Optional[int] = None,
+        k_folds_dir: Optional[str] = None,
+        frames_dir: Optional[str] = None
+) -> None:
     """
-    Visualize performance of a trained model on the test set. Optionally save the model.
-    :param model: A trained TensorFlow model
-    :param test_set: Test set of LUS frames
-    :param test_df: A pd.DataFrame containing frame paths and labels for the test set
-    """
-
-    # Run the model on the test set and print the resulting performance metrics.
-    test_results = model.evaluate(test_set, verbose=1)
-    test_metrics = {}
-    for metric, value in zip(model.metrics_names, test_results):
-        wandb.log[f"test/{metric}"] = value
-
-    print(test_metrics)
-    # Visualization of test results
-    test_predictions = model.predict(test_set, verbose=0)
-    test_labels = test_df['Class']
-    plt = plot_roc(test_labels, test_predictions, cfg['DATA']['CLASSES'], dir_path=cfg['PATHS']['IMAGES'])
-    roc_img = plot_to_tensor()
-    plt = plot_confusion_matrix(test_labels, test_predictions, cfg['DATA']['CLASSES'], dir_path=cfg['PATHS']['IMAGES'])
-    cm_img = plot_to_tensor()
-    #
-    # # Log test set results and plots in TensorBoard
-    # writer = tf.summary.create_file_writer(logdir=log_dir)
-
-    # Create table of test set metrics
-    test_summary_str = [['**Metric**', '**Value**']]
-    for metric in test_metrics:
-        metric_values = test_metrics[metric]
-        test_summary_str.append([metric, str(metric_values)])
-
-    print(test_metrics)
-
-    # Create table of model and train hyperparameters used in this experiment
-    hparam_summary_str = [['**Variable**', '**Value**']]
-    for key in cfg['TRAIN']:
-        hparam_summary_str.append([key, str(cfg['TRAIN'][key])])
-    for key in cfg['HPARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()]:
-        hparam_summary_str.append([key, str(cfg['HPARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()][key])])
-
-    # Write to TensorBoard logs
-    with writer.as_default():
-        tf.summary.text(name='Test set metrics', data=tf.convert_to_tensor(test_summary_str), step=0)
-        tf.summary.text(name='Run hyperparameters', data=tf.convert_to_tensor(hparam_summary_str), step=0)
-        tf.summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
-        tf.summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
-    return
-
-
-def perform_single_run(hparams=None, save_weights=False, write_logs=False):
-    '''
-    Train a single model. Use the passed hyperparameters if possible; otherwise, use those in config.
+    Used to perform a single training run. Used in a variety of contexts - single training, cross-val, hyper-param search
     :param hparams: Dict of hyperparameters
-    :param save_model: Flag indicating whether to save the model
-    :param write_logs: Flag indicating whether to write any training logs to disk
+    :param save_weights: Flag indicating whether to save the model's weights
+    :param group_id: Optional string indicates a group id for the training run, used only for cross-validation
+    :param fold_id: Optional fold id which specifies fold for validation, used only for cross-validation
+    :param k_folds_dir: Optional directory for KFoldsCrossValidation artifact, used only for cross-validation
+    :param frames_dir: Optional directory where frames are stored, used only for cross-validation
     :return: Dictionary of test set performance metrics
-    '''
+    """
 
     # Hardware configuration
     # If configuration is set, the model will train with a specified memory limit
@@ -226,12 +187,9 @@ def perform_single_run(hparams=None, save_weights=False, write_logs=False):
                 tf.config.experimental.set_virtual_device_configuration(gpu, [
                     tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
-    # Initialize WandB run
-    run = wandb.init(
-        project=cfg['WANDB']['PROJECT_NAME'],
-        job_type='train',
-        entity=cfg['WANDB']['ENTITY'],
-    )
+    # Initialize wandb run based on experiment type
+    run = initialize_wandb_run(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
+                               experiment_type=cfg['TRAIN']['EXPERIMENT_TYPE'], group_id=group_id)
 
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     if cfg['TRAIN']['EXPERIMENT_TYPE'] == 'hparam_search':
@@ -249,14 +207,17 @@ def perform_single_run(hparams=None, save_weights=False, write_logs=False):
                 hparams[hparam] = cfg['HPARAMS'][model_name][hparam]
 
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
-    if write_logs:
-        log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    else:
-        log_dir = None
 
-    # Get TrainValTest artifact from wandb
-    train_df, val_df, test_df, frames_dir = get_train_val_test_artifact(run,
-                                                                        cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'])
+    experiment = cfg['TRAIN']['EXPERIMENT_TYPE']
+
+    if experiment != 'cross_validation':
+        # Get TrainValTest artifact from wandb
+        train_df, val_df, test_df, frames_dir = get_train_val_test_artifact(run,
+                                                                            cfg['WANDB']
+                                                                            ['TRAIN_VAL_TEST_ARTIFACT_VERSION'])
+    else:
+        train_df, val_df = get_fold_df(k_folds_dir, fold_id)
+        test_df = None
 
     # Get datasets for training
     train_set, val_set, test_set = get_datasets(train_df, val_df, test_df, frames_key='Frame Path', target_key='Class',
@@ -274,7 +235,8 @@ def perform_single_run(hparams=None, save_weights=False, write_logs=False):
     model = train_classifier(model_def, train_set, val_set, hparams, output_bias=output_bias, class_weight=class_weight,
                              pretrained_path=pretrained_path, save_weights=save_weights)
 
-    log_test_results(model, test_set, test_df)
+    if test_set is not None:
+        generate_classification_test_results(model, test_set, test_df, 'Class', cfg['DATA']['CLASSES'])
 
     wandb.finish()
 
@@ -325,26 +287,33 @@ def configure_hyperparameter_sweep() -> None:
     return sweep_id
 
 
-def train_experiment(experiment='single_train', save_weights=False, write_logs=False):
-    '''
+def train_experiment(experiment='single_train', save_weights=False):
+    """
     Run a training experiment
     :param experiment: String defining which experiment to run
     :param save_weights: Flag indicating whether to save any models trained during the experiment
-    :param write_logs: Flag indicating whether to write logs for training
-    '''
+    """
 
     # Conduct the desired train experiment
     if experiment == 'single_train':
-        perform_single_run(save_weights=save_weights, write_logs=write_logs)
+        perform_single_run(save_weights=save_weights)
     elif experiment == 'hparam_search':
         sweep_id = configure_hyperparameter_sweep()
         wandb.agent(sweep_id, function=perform_single_run, count=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'])
     elif experiment == 'cross_validation':
-        pass
+        val_group_id = f'kfold-{wandb.util.generate_id()}'
+        frames_dir, k_folds_dir, n_folds = get_k_folds_artifact(project_name=cfg['WANDB']['PROJECT_NAME'],
+                                                                entity_name=cfg['WANDB']['ENTITY'],
+                                                                artifact_version=cfg['WANDB']
+                                                                ['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])
+
+        for fold_id in range(n_folds):
+            perform_single_run(group_id=val_group_id, fold_id=fold_id, k_folds_dir=k_folds_dir, frames_dir=frames_dir)
+
     else:
         raise Exception("Invalid entry in TRAIN > EXPERIMENT_TYPE field of config.yml.")
     return
 
 
 if __name__ == '__main__':
-    train_experiment(cfg['TRAIN']['EXPERIMENT_TYPE'], write_logs=True, save_weights=True)
+    train_experiment(cfg['TRAIN']['EXPERIMENT_TYPE'], save_weights=True)
