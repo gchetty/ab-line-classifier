@@ -30,7 +30,7 @@ from src.models.models import *
 from src.visualization.visualization import *
 from src.data.preprocessor import Preprocessor
 from src.train_utils import get_train_val_test_artifact, get_datasets, generate_classification_test_results, \
-    initialize_wandb_run, get_k_folds_artifact, get_fold_df
+    initialize_wandb_run, get_fold_artifact, get_n_folds
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
@@ -163,16 +163,12 @@ def perform_single_run(
         save_weights: bool = False,
         group_id: Optional[str] = None,
         fold_id: Optional[int] = None,
-        k_folds_dir: Optional[str] = None,
-        frames_dir: Optional[str] = None
 ) -> None:
     """
     Used to perform a single training run. Used in a variety of contexts - single training, cross-val, hyper-param search
     :param save_weights: Flag indicating whether to save the model's weights
     :param group_id: Optional string indicates a group id for the training run, used only for cross-validation
     :param fold_id: Optional fold id which specifies fold for validation, used only for cross-validation
-    :param k_folds_dir: Optional directory for KFoldsCrossValidation artifact, used only for cross-validation
-    :param frames_dir: Optional directory where frames are stored, used only for cross-validation
     :return: Dictionary of test set performance metrics
     """
 
@@ -192,25 +188,31 @@ def perform_single_run(
     # Code to get default hyperparameters from config unless overridden by sweep
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     run.config.setdefaults(cfg['HPARAMS'][model_name])
-    hparams = wandb.config
+    hparams = dict(wandb.config)
 
     # Store additional configuration information in wandb run
-    wandb.config.update(cfg)
+    wandb.config.update({
+        'HPARAMS': hparams,
+        'TRAIN': cfg['TRAIN'],
+        'DATA': {
+            'IMG_DIM': cfg['DATA']['IMG_DIM']
+        }
+    })
     if fold_id is not None:
-        wandb.config.update({"FOLD_ID": fold_id})
+        wandb.config.update({'FOLD_ID': fold_id})
 
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
 
     experiment = cfg['TRAIN']['EXPERIMENT_TYPE']
-
-    if experiment != 'cross_validation':
+    if experiment == 'cross_validation':
+        train_df, val_df, test_df, frames_dir = get_fold_artifact(run,
+                                                                  cfg['WANDB']['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'],
+                                                                  fold_id)
+    else:
         # Get TrainValTest artifact from wandb
         train_df, val_df, test_df, frames_dir = get_train_val_test_artifact(run,
                                                                             cfg['WANDB']
                                                                             ['TRAIN_VAL_TEST_ARTIFACT_VERSION'])
-    else:
-        train_df, val_df = get_fold_df(k_folds_dir, fold_id)
-        test_df = None
 
     # Get datasets for training
     train_set, val_set, test_set = get_datasets(train_df, val_df, test_df, frames_key='Frame Path', target_key='Class',
@@ -295,13 +297,10 @@ def train_experiment(experiment='single_train', save_weights=False):
         wandb.agent(sweep_id, function=perform_single_run, count=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'])
     elif experiment == 'cross_validation':
         val_group_id = f'kfold-{wandb.util.generate_id()}'
-        frames_dir, k_folds_dir, n_folds = get_k_folds_artifact(project_name=cfg['WANDB']['PROJECT_NAME'],
-                                                                entity_name=cfg['WANDB']['ENTITY'],
-                                                                artifact_version=cfg['WANDB']
-                                                                ['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])
-
+        n_folds = get_n_folds(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
+                              artifact_version=cfg['WANDB']['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])
         for fold_id in range(n_folds):
-            perform_single_run(group_id=val_group_id, fold_id=fold_id, k_folds_dir=k_folds_dir, frames_dir=frames_dir)
+            perform_single_run(group_id=val_group_id, fold_id=fold_id)
 
     else:
         raise Exception("Invalid entry in TRAIN > EXPERIMENT_TYPE field of config.yml.")
