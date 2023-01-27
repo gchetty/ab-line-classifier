@@ -1,3 +1,10 @@
+"""
+This software is used to scrub raw clips of all on-screen information
+(e.g. vendor logos, battery indicators, index mark, depth markers)
+extraneous to the ultrasound beam itself. This is dedicated deep learning
+masking software for ultrasound (AutoMask, WaveBase Inc., Waterloo, Canada).
+"""
+
 import cv2
 import numpy as np
 import os

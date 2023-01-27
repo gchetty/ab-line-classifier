@@ -66,7 +66,7 @@ def log_images(
         artifact = wandb.Artifact(
             'Images',
             type='dataset',
-            description='Holds images, images table, clips table, and sql query.',
+            description='Holds images, frames table, clips table, and sql query.',
             metadata={
                 'automask_version': cfg['DATA']['AUTOMASK']['VERSION'],
                 'automask_output_format': cfg['DATA']['AUTOMASK']['OUTPUT_FORMAT'],
@@ -75,9 +75,9 @@ def log_images(
             }
         )
 
-        artifact.add_dir(cfg['PATHS']['FRAMES'], name='images/')
+        artifact.add_dir(cfg['PATHS']['FRAMES'], name='frames/')
         artifact.add_file(cfg['PATHS']['QUERY_TABLE'], name='clips_table.csv')
-        artifact.add_file(cfg['PATHS']['FRAME_TABLE'], name='images.csv')
+        artifact.add_file(cfg['PATHS']['FRAME_TABLE'], name='frames.csv')
         artifact.add_file(cfg['PATHS']['DATABASE_QUERY'], name='clips_query.sql')
 
         # Save the artifact to W & B.
@@ -88,7 +88,10 @@ def log_dev_and_holdout(
     cfg: Dict[str, str],
 ) -> None:
     """
-    function to log Deep Breathe model development and holdout artifacts in wandb
+    Function to log Deep Breathe model development and holdout artifacts in wandb. Both use the same Images artifact
+    and are non-overlapping subsets so that the ModelDev artifact is used for model development and the Holdout
+    artifact is for final model evaluation and final results. The ModelDev artifact is decomposed into further artifacts
+    used for training and cross-validation.
     :param cfg: configuration info for project containing various wandb project info, artifact paths, and metadata
     """
 
@@ -101,43 +104,43 @@ def log_dev_and_holdout(
         # downloads previously logged Images artifact
         images_artifact = run.use_artifact(f'Images:{images_version}')
         images_artifact_clips_table = images_artifact.get_path('clips_table.csv').download()
-        images_artifact_images_table = images_artifact.get_path('images.csv').download()
+        images_artifact_frames_table = images_artifact.get_path('frames.csv').download()
 
         # clips table DataFrame from Images artifact
         clips_table_df = pd.read_csv(images_artifact_clips_table)
-        # images table DataFrame from Images artifact
-        images_table_df = pd.read_csv(images_artifact_images_table)
+        # frames table DataFrame from Images artifact
+        frames_table_df = pd.read_csv(images_artifact_frames_table)
 
-        model_dev_images_df, holdout_images_df = group_train_test_split(images_table_df,
+        model_dev_frames_df, holdout_frames_df = group_train_test_split(frames_table_df,
                                                                         float(cfg['DATA']['HOLDOUT_ARTIFACT_SPLIT']),
                                                                         group_key='patient_id', target_key='Class',
                                                                         random_seed=cfg['WANDB']['ARTIFACT_SEED'])
 
         # subsets of clips table for each artifact type
-        model_dev_clips_df = generate_clips_table_subset(clips_table_df, model_dev_images_df)
-        holdout_clips_df = generate_clips_table_subset(clips_table_df, holdout_images_df)
+        model_dev_clips_df = generate_clips_table_subset(clips_table_df, model_dev_frames_df)
+        holdout_clips_df = generate_clips_table_subset(clips_table_df, holdout_frames_df)
 
         # save data for artifacts that are generated
-        model_dev_images_df.to_csv(cfg['PATHS']['MODEL_DEV_IMAGES_PATH'], index=False)
+        model_dev_frames_df.to_csv(cfg['PATHS']['MODEL_DEV_FRAMES_PATH'], index=False)
         model_dev_clips_df.to_csv(cfg['PATHS']['MODEL_DEV_CLIPS_PATH'], index=False)
-        holdout_images_df.to_csv(cfg['PATHS']['HOLDOUT_IMAGES_PATH'], index=False)
+        holdout_frames_df.to_csv(cfg['PATHS']['HOLDOUT_FRAMES_PATH'], index=False)
         holdout_clips_df.to_csv(cfg['PATHS']['HOLDOUT_CLIPS_PATH'], index=False)
 
-        model_dev_artifact = create_model_dev_holdout_artifact(
+        model_dev_artifact = create_dev_holdout_artifact(
             cfg=cfg,
             images_artifact_version=images_artifact.version,
             artifact_name='ModelDev',
-            artifact_description='Images table and clips table for model research and development.',
-            images_path=cfg['PATHS']['MODEL_DEV_IMAGES_PATH'],
+            artifact_description='Frames table and clips table for model research and development.',
+            frames_path=cfg['PATHS']['MODEL_DEV_FRAMES_PATH'],
             clips_path=cfg['PATHS']['MODEL_DEV_CLIPS_PATH']
         )
 
-        holdout_artifact = create_model_dev_holdout_artifact(
+        holdout_artifact = create_dev_holdout_artifact(
             cfg=cfg,
             images_artifact_version=images_artifact.version,
             artifact_name='Holdout',
-            artifact_description='Images table and clips table held out for final model validation.',
-            images_path=cfg['PATHS']['HOLDOUT_IMAGES_PATH'],
+            artifact_description='Frames table and clips table held out for final model validation.',
+            frames_path=cfg['PATHS']['HOLDOUT_FRAMES_PATH'],
             clips_path=cfg['PATHS']['HOLDOUT_CLIPS_PATH']
         )
 
@@ -173,14 +176,14 @@ def group_train_test_split(
     sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_seed)
     train_index, test_index = next(sgkf.split(data_df, y_labels, groups=group_list))
 
-    # subsets the images DataFrame based on the split indices generated
+    # subsets the frames DataFrame based on the split indices generated
     train_df = data_df.iloc[train_index]
     test_df = data_df.iloc[test_index]
 
     return train_df, test_df
 
 
-def log_train_test_val(
+def log_train_val_test(
         cfg: Dict[str, str],
 ) -> None:
     """
@@ -197,12 +200,12 @@ def log_train_test_val(
         # downloads previously logged ModelDev artifact
         model_dev_artifact = run.use_artifact(f'ModelDev:{model_dev_version}')
         model_dev_artifact_clips_table = model_dev_artifact.get_path('clips_table.csv').download()
-        model_dev_artifact_images_table = model_dev_artifact.get_path('images.csv').download()
+        model_dev_artifact_frames_table = model_dev_artifact.get_path('frames.csv').download()
 
         # clips table DataFrame from ModelDev artifact
         clips_table_df = pd.read_csv(model_dev_artifact_clips_table)
-        # images table DataFrame from ModelDev artifact
-        images_table_df = pd.read_csv(model_dev_artifact_images_table)
+        # frames table DataFrame from ModelDev artifact
+        frames_table_df = pd.read_csv(model_dev_artifact_frames_table)
 
         # relative val split required so that the correct amount of data is taken relative to complete dataset
         val_split = float(cfg['DATA']['VAL_SPLIT'])
@@ -210,32 +213,32 @@ def log_train_test_val(
         relative_val_split = val_split / (1 - test_split)
 
         # splits train and validation data from test data
-        train_val_images_df, test_images_df = group_train_test_split(images_table_df, test_split,
+        train_val_frames_df, test_frames_df = group_train_test_split(frames_table_df, test_split,
                                                                      group_key='patient_id', target_key='Class',
                                                                      random_seed=cfg['WANDB']['ARTIFACT_SEED'])
 
         # splits train and validation data
-        train_images_df, val_images_df = group_train_test_split(train_val_images_df, relative_val_split,
+        train_frames_df, val_frames_df = group_train_test_split(train_val_frames_df, relative_val_split,
                                                                 group_key='patient_id', target_key='Class',
                                                                 random_seed=cfg['WANDB']['ARTIFACT_SEED'])
 
         # subsets of clips table for each artifact type
-        train_clips_df = generate_clips_table_subset(clips_table_df, train_images_df)
-        val_clips_df = generate_clips_table_subset(clips_table_df, val_images_df)
-        test_clips_df = generate_clips_table_subset(clips_table_df, test_images_df)
+        train_clips_df = generate_clips_table_subset(clips_table_df, train_frames_df)
+        val_clips_df = generate_clips_table_subset(clips_table_df, val_frames_df)
+        test_clips_df = generate_clips_table_subset(clips_table_df, test_frames_df)
 
-        images_path = f"{cfg['PATHS']['PARTITIONS']}images"
+        frames_path = f"{cfg['PATHS']['PARTITIONS']}frames"
         clips_path = f"{cfg['PATHS']['PARTITIONS']}clips"
 
-        if not os.path.isdir(images_path):
-            os.mkdir(images_path)
+        if not os.path.isdir(frames_path):
+            os.mkdir(frames_path)
 
         if not os.path.isdir(clips_path):
             os.mkdir(clips_path)
 
-        train_images_df.to_csv(f"{images_path}/train.csv", index=False)
-        val_images_df.to_csv(f"{images_path}/val.csv", index=False)
-        test_images_df.to_csv(f"{images_path}/test.csv", index=False)
+        train_frames_df.to_csv(f"{frames_path}/train.csv", index=False)
+        val_frames_df.to_csv(f"{frames_path}/val.csv", index=False)
+        test_frames_df.to_csv(f"{frames_path}/test.csv", index=False)
 
         train_clips_df.to_csv(f"{clips_path}/train.csv", index=False)
         val_clips_df.to_csv(f"{clips_path}/val.csv", index=False)
@@ -254,7 +257,7 @@ def log_train_test_val(
             }
         )
 
-        artifact.add_dir(images_path, "images")
+        artifact.add_dir(frames_path, "frames")
         artifact.add_dir(clips_path, "clips")
 
         run.log_artifact(artifact)
@@ -278,12 +281,12 @@ def log_k_fold_cross_val(
         # downloads previously logged ModelDev artifact
         model_dev_artifact = run.use_artifact(f'ModelDev:{model_dev_version}')
         model_dev_artifact_clips_table = model_dev_artifact.get_path('clips_table.csv').download()
-        model_dev_artifact_images_table = model_dev_artifact.get_path('images.csv').download()
+        model_dev_artifact_frames_table = model_dev_artifact.get_path('frames.csv').download()
 
         # clips table DataFrame from ModelDev artifact
         clips_table_df = pd.read_csv(model_dev_artifact_clips_table)
-        # images table DataFrame from ModelDev artifact
-        images_table_df = pd.read_csv(model_dev_artifact_images_table)
+        # frames table DataFrame from ModelDev artifact
+        frames_table_df = pd.read_csv(model_dev_artifact_frames_table)
 
         # Creates artifact
         artifact = wandb.Artifact(
@@ -301,18 +304,18 @@ def log_k_fold_cross_val(
         n_folds = cfg['TRAIN']['N_FOLDS']
 
         # patient_id_list need to ensure that patient_id is only found in train and validation group
-        patient_id_list = np.array(images_table_df.patient_id.values)
-        y_labels = images_table_df.Class.values
+        patient_id_list = np.array(frames_table_df.patient_id.values)
+        y_labels = frames_table_df.Class.values
 
         # splits data into k folds and takes the indices of the first fold to correspond with a single train-test split
         sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=cfg['WANDB']['ARTIFACT_SEED'])
-        for i, (_, test_index) in enumerate(sgkf.split(images_table_df, y_labels, groups=patient_id_list)):
+        for i, (_, test_index) in enumerate(sgkf.split(frames_table_df, y_labels, groups=patient_id_list)):
 
-            # subsets the images DataFrame based on the split indices generated
+            # subsets the frames DataFrame based on the split indices generated
             # only test index is used is because training data is created with every fold, but the ith fold
-            fold_images_df = images_table_df.iloc[test_index]
-            # subsets clips tables using fold images subset
-            fold_clips_df = generate_clips_table_subset(clips_table_df, fold_images_df)
+            fold_frames_df = frames_table_df.iloc[test_index]
+            # subsets clips tables using fold frames subset
+            fold_clips_df = generate_clips_table_subset(clips_table_df, fold_frames_df)
 
             fold_path = f"{cfg['PATHS']['K_FOLDS_SPLIT_PATH']}fold_{i}"
 
@@ -320,7 +323,7 @@ def log_k_fold_cross_val(
                 os.mkdir(fold_path)
 
             # save data for artifacts that are generated
-            fold_images_df.to_csv(f"{fold_path}/images.csv", index=False)
+            fold_frames_df.to_csv(f"{fold_path}/frames.csv", index=False)
             fold_clips_df.to_csv(f"{fold_path}/clips.csv", index=False)
 
             artifact.add_dir(fold_path, f"fold_{i}")
@@ -328,12 +331,12 @@ def log_k_fold_cross_val(
         run.log_artifact(artifact)
 
 
-def create_model_dev_holdout_artifact(
+def create_dev_holdout_artifact(
     cfg: Dict[str, str],
     images_artifact_version: str,
     artifact_name: str,
     artifact_description: str,
-    images_path: str,
+    frames_path: str,
     clips_path: str
 ) -> wandb.Artifact:
     """
@@ -342,7 +345,7 @@ def create_model_dev_holdout_artifact(
     :param images_artifact_version: version identifier of the Images artifact used to generate this artifact
     :param artifact_name: name of dataset/artifact (in wandb)
     :param artifact_description: description of artifact that can be seen in wandb
-    :param images_path: local path to images table
+    :param frames_path: local path to frames table
     :param clips_path: local path to clips table
 
     """
@@ -360,7 +363,7 @@ def create_model_dev_holdout_artifact(
     )
 
     # Adds relevant files for this type of artifact
-    artifact.add_file(images_path, name='images.csv')
+    artifact.add_file(frames_path, name='frames.csv')
     artifact.add_file(clips_path, name='clips_table.csv')
 
     return artifact
@@ -368,17 +371,17 @@ def create_model_dev_holdout_artifact(
 
 def generate_clips_table_subset(
     original_clips_table: pd.DataFrame,
-    images_table_subset: pd.DataFrame
+    frames_table_subset: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    function used to generate a subset of the clips table corresponding to the subset of the images table
+    function used to generate a subset of the clips table corresponding to the subset of the framess table
     :param original_clips_table: DataFrame containing clips table before a subset of clip ids is taken
-    :param images_table_subset: DataFrame that has clip ids that are a subset of the over clips table
+    :param frames_table_subset: DataFrame that has clip ids that are a subset of the over clips table
     """
 
-    # generates a subset of clip table by matching the first instance of clip id found in the images table subset
-    images_unique_id = images_table_subset.drop_duplicates(subset='id')
-    clips_table_subset = pd.merge(original_clips_table, images_unique_id, how='inner', on='id',
+    # generates a subset of clip table by matching the first instance of clip id found in the frames table subset
+    frames_unique_id = frames_table_subset.drop_duplicates(subset='id')
+    clips_table_subset = pd.merge(original_clips_table, frames_unique_id, how='inner', on='id',
                                   suffixes=('', '_discard'))
 
     # discard unnecessary or duplicate columns that are not originally found in clips table
@@ -403,6 +406,6 @@ if __name__ == "__main__":
         logging.info("Logging KFoldCrossValidation artifact...")
         log_k_fold_cross_val(cfg)
 
-    if logging_cfg['TRAIN_TEST_VAL']:
+    if logging_cfg['TRAIN_VAL_TEST']:
         logging.info("Logging TrainValTest artifact...")
-        log_train_test_val(cfg)
+        log_train_val_test(cfg)

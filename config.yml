@@ -26,9 +26,9 @@ PATHS:
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
   AUTOMASK_MODEL_PATH: 'data/auto_masking_deeper.h5'
   HOLDOUT_CLIPS_PATH: 'data/holdout_clips.csv'
-  HOLDOUT_IMAGES_PATH: 'data/holdout_images.csv'
+  HOLDOUT_FRAMES_PATH: 'data/holdout_frames.csv'
   MODEL_DEV_CLIPS_PATH: 'data/model_dev_clips.csv'
-  MODEL_DEV_IMAGES_PATH: 'data/model_dev_images.csv'
+  MODEL_DEV_FRAMES_PATH: 'data/model_dev_frames.csv'
   K_FOLDS_SPLIT_PATH: 'data/'
 
 
