@@ -60,8 +60,10 @@ class ABLineDatasetCreator(DatasetCreator):
         query_df = pd.read_csv(self.cfg['PATHS']['CLIPS_TABLE'])
         clip_dfs = []
 
+        all_masked_clips_path = self.cfg['PATHS']['MASKED_CLIPS']
         for index, row in tqdm(query_df.iterrows()):
-            for mp4_file in glob.glob(row['Path'] + '/' + row['filename'] + '.mp4'):
+            row_masked_clip_path = f"{all_masked_clips_path}{row['id']}/{row['id']}.mp4"
+            for mp4_file in glob.glob(row_masked_clip_path):
                 image_paths = self.mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
                 # Note that the id is key to linking the clips and image tables in dataset artifacts
                 clip_df = pd.DataFrame(
@@ -75,8 +77,7 @@ class ABLineDatasetCreator(DatasetCreator):
 
     def query_to_df(self) -> pd.DataFrame:
         """
-        Extracts out pertinent information from database query and builds a dataframe linking filenames, patients,
-        and class
+        Extracts out pertinent information from database query and builds a dataframe linking patients and class
         """
 
         COLUMNS_WANTED = ['patient_id', 'a_or_b_lines', 'id']
@@ -113,12 +114,6 @@ class ABLineDatasetCreator(DatasetCreator):
         # Removes clips with unlabelled parenchymal findings
         df = df[df.a_or_b_lines.notnull()]
 
-        # Create filename
-        df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_VID" + df["vid_id"].map(str)
-
-        # Remove filenames that are NaNs because one of the fields used to create the filename is null
-        df = df[df.filename.notnull()]
-
         # Create column of class category to each clip. 
         # Modifiable for binary or multi-class labelling
         df['class'] = df.apply(lambda row: 0 if row.a_or_b_lines == 'a_lines' else
@@ -133,12 +128,10 @@ class ABLineDatasetCreator(DatasetCreator):
             {'b_lines_<_3': 'b_lines', 'b_lines-_moderate_(<50%_pleural_line)': 'b_lines',
              'b_lines-_severe_(>50%_pleural_line)': 'b_lines'})
 
-        df['Path'] = df.apply(lambda row: self.cfg['PATHS']['MASKED_CLIPS'] + row.filename, axis=1)
-
         df['s3_path'] = df.apply(lambda row: row.s3_path, axis=1)
 
         # Finalize dataframe
-        df = df[['filename'] + COLUMNS_WANTED + ['class'] + ['Path'] + ['s3_path']]
+        df = df[COLUMNS_WANTED + ['class'] + ['s3_path']]
 
         # Save df - append this csv to the previous csv 'clips_by_patient_2.csv'
         df.to_csv(self.cfg['PATHS']['CLIPS_TABLE'], index=False)

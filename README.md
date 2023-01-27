@@ -74,7 +74,7 @@ their ground truth, associated clip, and patient id.
 
 The following intermediate csv headers are also extracted to create the final frames table csv file to train a model:  
 
-_| filename | patient_id  | a_or_b_lines  | class |
+ | patient_id  | a_or_b_lines  | class |
 
 Where _filename_ is the name of the labeled clip file, _patient_id_ is a unique patient identifier, 
 _a_or_b_lines_ is a string label for the clip, and _class_ is the label as a class integer.

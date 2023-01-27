@@ -55,6 +55,10 @@ class DatasetCreator(ABC):
 
         # Dataframe of all clip links
         links = df.s3_path
+        clip_ids = df.id
+
+        # Assertion made to ensure that the links and clip_ids aren't matched incorrectly
+        assert len(links) == len(clip_ids)
 
         logging.info('Fetching clips from AWS...')
 
@@ -62,11 +66,9 @@ class DatasetCreator(ABC):
         warning_counts = {}
 
         # Download clips and save to disk
-        for link in tqdm(links):
+        for link, clip_id in tqdm(zip(links, clip_ids)):
             logging.info(link)
-            firstpos = link.rfind("/")
-            lastpos = link.rfind("-")
-            filename = link[firstpos+1:lastpos] + '.mp4'
+            filename = f'{clip_id}.mp4'
 
             try:
                 wget.download(link, output_folder + filename)
