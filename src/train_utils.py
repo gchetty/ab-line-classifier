@@ -35,12 +35,12 @@ def get_train_val_test_artifact(
     images_artifact_version = model_dev_artifact.metadata['images_artifact_version']
     images_artifact = run.use_artifact(f'Images:{images_artifact_version}')
 
-    frames_dir = f"{images_artifact.download()}/images"
-    train_val_test_images_path = f"{train_val_test_artifact.download()}/images"
+    frames_dir = f"{images_artifact.download()}/frames"
+    train_val_test_frames_path = f"{train_val_test_artifact.download()}/frames"
 
-    train_df = pd.read_csv(f"{train_val_test_images_path}/train.csv")
-    val_df = pd.read_csv(f"{train_val_test_images_path}/val.csv")
-    test_df = pd.read_csv(f"{train_val_test_images_path}/test.csv")
+    train_df = pd.read_csv(f"{train_val_test_frames_path}/train.csv")
+    val_df = pd.read_csv(f"{train_val_test_frames_path}/val.csv")
+    test_df = pd.read_csv(f"{train_val_test_frames_path}/test.csv")
 
     return train_df, val_df, test_df, frames_dir
 
@@ -207,7 +207,7 @@ def get_fold_artifact(
     images_artifact_version = model_dev_artifact.metadata['images_artifact_version']
     images_artifact = run.use_artifact(f'Images:{images_artifact_version}')
 
-    frames_dir = f"{images_artifact.download()}/images"
+    frames_dir = f"{images_artifact.download()}/frames"
     k_folds_dir = f"{k_folds_artifact.download()}"
 
     # Create a train_df from all folds except validation fold
@@ -215,11 +215,11 @@ def get_fold_artifact(
     val_df = None
     for filename in os.listdir(k_folds_dir):
         cur_fold_id = int(filename.split('_')[-1])
-        fold_images_path = os.path.join(k_folds_dir, filename, 'images.csv')
+        fold_frames_path = os.path.join(k_folds_dir, filename, 'frames.csv')
         if cur_fold_id == fold_id:
-            val_df = pd.read_csv(fold_images_path)
+            val_df = pd.read_csv(fold_frames_path)
         else:
-            train_dfs.append(pd.read_csv(fold_images_path))
+            train_dfs.append(pd.read_csv(fold_frames_path))
     train_df = pd.concat(train_dfs)
 
     # No test_df for k-fold cross-validation
