@@ -9,13 +9,16 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 
-from src.data.dataset_creation import DatasetCreation
+from src.data.dataset_creator import DatasetCreator
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
 
-# Dataset creation for retrospective validation
-class ABLineDatasetCreation(DatasetCreation):
+class ABLineDatasetCreator(DatasetCreator):
+    """
+    Class used to automate the creation of a retrospective dataset for A vs. B line classification.
+    Automates the whole process from sql query to final dataset frames that are fed into the model.
+    """
     def __init__(self, cfg, database_cfg):
         super().__init__(cfg)
         self.database_cfg = database_cfg
@@ -146,5 +149,5 @@ class ABLineDatasetCreation(DatasetCreation):
 if __name__ == '__main__':
     cfg = yaml.full_load(open(f"{os.getcwd()}/config.yml", 'r'))
     database_cfg = yaml.full_load(open(f"{os.getcwd()}/database_config.yml", 'r'))
-    dataset_creation = ABLineDatasetCreation(cfg, database_cfg)
-    dataset_creation.create_dataset()
+    dataset_creator = ABLineDatasetCreator(cfg, database_cfg)
+    dataset_creator.create_dataset()

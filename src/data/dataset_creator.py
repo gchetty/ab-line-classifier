@@ -13,7 +13,12 @@ from src.data.auto_masking import UnetSegmentation
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
-class DatasetCreation(ABC):
+
+class DatasetCreator(ABC):
+    """
+    Abstract base class used to automate the creation of retrospective datasets.
+    Two main abstract methods to modify include query_to_df and build_dataset.
+    """
     def __init__(self, cfg: Dict[str, str]) -> None:
         self.cfg = cfg
         
@@ -74,7 +79,7 @@ class DatasetCreation(ABC):
         
         logging.info('Fetched clips successfully!')
         for k, v in warning_counts.items():
-            logging.warning(f"{k} occured {v} times")
+            logging.warning(f"{k} occurred {v} times")
 
     def auto_mask(self) -> None:
         unet_seg = UnetSegmentation()

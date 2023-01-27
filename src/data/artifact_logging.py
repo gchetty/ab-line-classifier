@@ -84,7 +84,7 @@ def log_images(
         run.log_artifact(artifact)
 
 
-def log_model_dev_holdout(
+def log_dev_and_holdout(
     cfg: Dict[str, str],
 ) -> None:
     """
@@ -153,7 +153,9 @@ def group_train_test_split(
         random_seed: int
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    function that takes a DataFrame and splits into a train and test DataFrame where groups are kept in different sets
+    Function that takes a DataFrame and splits into a train and test DataFrame where groups are kept in different sets.
+    Note that the way that the split is done is by splitting the data into groups by dividing 1.0 by the test_size
+    and taking the first group which could lead to different fractions of data than expected depending on the data_df.
     :param data_df: input DataFrame
     :param test_size: the size of the test set as a percentage (from 0.0 - 1.0)
     :param group_key: the key in the DataFrame where we want to keep separate in train and test sets
@@ -178,7 +180,7 @@ def group_train_test_split(
     return train_df, test_df
 
 
-def log_model_train_test_val(
+def log_train_test_val(
         cfg: Dict[str, str],
 ) -> None:
     """
@@ -395,7 +397,7 @@ if __name__ == "__main__":
 
     if logging_cfg['MODEL_DEV_HOLDOUT']:
         logging.info("Logging ModelDev and Holdout artifacts...")
-        log_model_dev_holdout(cfg)
+        log_dev_and_holdout(cfg)
 
     if logging_cfg['K_FOLD_CROSS_VAL']:
         logging.info("Logging KFoldCrossValidation artifact...")
@@ -403,4 +405,4 @@ if __name__ == "__main__":
 
     if logging_cfg['TRAIN_TEST_VAL']:
         logging.info("Logging TrainValTest artifact...")
-        log_model_train_test_val(cfg)
+        log_train_test_val(cfg)
