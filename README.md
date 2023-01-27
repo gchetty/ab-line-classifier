@@ -49,24 +49,35 @@ _A deep learning solution for the classification of normal versus abnormal lung 
    
 ## Building a Dataset
 
-The raw clips were scrubbed of all on-screen information
+Create a database_config.yml file in the root directory as follows:
+```yaml
+USERNAME: (database user name)
+PASSWORD: (database password)
+HOST: (database host name)
+DATABASE: data
+```
+
+To build a dataset run the following command: 
+
+```python
+python src/data/ab_line_dataset_creator.py
+```
+
+This runs a series of automated steps using the clips query specified. Note that
+the raw clips were scrubbed of all on-screen information
 (e.g. vendor logos, battery indicators, index mark, depth markers)
 extraneous to the ultrasound beam itself. This was done using a dedicated
 deep learning masking software for ultrasound (AutoMask, WaveBase Inc.,
 Waterloo, Canada). Following this, all ultrasound clips were deconstructed into
 their constituent frames, and a frame table was generated linking each frame to
-their ground truth, associated clip, and patient.
+their ground truth, associated clip, and patient id.
 
-The following csv headers can be used to create a clips table csv file to train a model:  
+The following intermediate csv headers are also extracted to create the final frames table csv file to train a model:  
 
-_| filename | patient_id  | a_or_b_lines  | class |_  
+ | patient_id  | a_or_b_lines  | class |
 
 Where _filename_ is the name of the labeled clip file, _patient_id_ is a unique patient identifier, 
-_a_or_b_lines_ is a string label for the clip, and _class_ is the label as a class integer.  
-
-Using this clips table csv, a set of lung ultrasound clips in mp4 format, and the 
-[_build-dataset.py_](/src/data/build-dataset.py) script, a frames table can be generated 
-that will be used to train a model.
+_a_or_b_lines_ is a string label for the clip, and _class_ is the label as a class integer.
 
    
 ## Use Cases
@@ -147,6 +158,7 @@ below.
 This section of the config contains all path definitions for reading data and writing outputs.
 - **CLIPS_TABLE**: Clip table in csv format.
 - **FRAME_TABLE**: Frame table in csv format.
+- **QUERY_TABLE**: Raw SQL clips table output in csv format.
 - **DATABASE_QUERY**: Table containing LUS exam ID's(Unique to our setup.)
 - **RAW_CLIPS**: Location of raw clip data in mp4 format.
 - **MASKED_CLIPS**: Location of masked clip data in mp4 format
@@ -166,6 +178,32 @@ This section of the config contains all path definitions for reading data and wr
 - **METRICS**
 - **EXPERIMENTS**
 - **EXPERIMENT_VISUALIZATIONS**
+- **PRETRAINED_WEIGHTS**
+- **RT_ROOT_DIR**
+- **RT_LABELBOX_ANNOTATIONS**
+- **AUTOMASK_MODEL_PATH**: Model used to mask clips.
+- **HOLDOUT_CLIPS_PATH**: Path to store clips table of Holdout artifact.
+- **HOLDOUT_FRAMES_PATH**: Path to store frames table of Holdout artifact.
+- **MODEL_DEV_CLIPS_PATH**: Path to store clips path of ModelDev artifact.
+- **MODEL_DEV_FRAMES_PATH**: Path to store frames table of ModelDev artifact.
+- **K_FOLDS_SPLIT_PATH**: Path to store data for KFolds artifact
+</details>
+
+<details closed> 
+<summary>WandB</summary>
+
+This section of the config is specifically related to WandB MLOps tool.
+- **ENTITY**: Name of workspace in WandB
+- **PROJECT_NAME**: Name of project in WandB
+- **LOGGING**: Various configuration parameters related to artifact logging.
+  - **IMAGES**: Whether to log Images artifacts.
+  - **MODEL_DEV_HOLDOUT**: Whether to log ModelDev and Holdout artifacts.
+  - **K_FOLD_CROSS_VAL**: Whether to log KFoldCrossValidation artifact.
+  - **TRAIN_TEST_VAL**: Whether to log TrainValTest artifact
+- **IMAGES_ARTIFACT_VERSION**: Version of Images artifact to use for logging.
+- **MODEL_DEV_ARTIFACT_VERSION**: Version of ModelDev artifact to use for logging.
+- **TRAIN_VAL_TEST_ARTIFACT_VERSION**: Version of TrainValTest artifact to use for logging or training.
+- **ARTIFACT_SEED**: Random number generator seed used to generate an artifact. Stored in artifact metadata.
 </details>
 
 <details closed> 
@@ -174,7 +212,15 @@ This section of the config contains all path definitions for reading data and wr
 - **IMG_DIM**: Dimensions for frame resizing.
 - **VAL_SPLIT**: Validation split.
 - **TEST_SPLIT**: Test split.
+- **HOLDOUT_ARTIFACT_SPLIT**: Split used for splitting ModelDev data and Holdout data.
 - **CLASSES**: A string list of data classes.
+- **RT_B_LINES_3_CLASS**
+- **REAL_TIME_DATA**: Flag indicating whether data is real-time or not.
+- **AUTOMASK**: configuration related to using automasking tool.
+  - **VERSION**: Indicates tool and version of automasking software.
+  - **OUTPUT_FORMAT**: Determines what file format is outputted by the tool.
+  - **EDGE_PRESERVE**: Represents how much of clip edge to preserve.
+  - **SAVE_CROPPED_ROI**: Flag determining if cropped roi is saved.
 </details>
 
 <details closed> 
@@ -182,6 +228,7 @@ This section of the config contains all path definitions for reading data and wr
 
 - **MODEL_DEF**: Defines the type of frame model to train. One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
 - **EXPERIMENT_TYPE**: Defines the experiment type. One of {'single_train', 'cross_validation', 'hparam_search'}
+- **SEED**
 - **N_CLASSES**: Number of classes/labels.
 - **BATCH_SIZE**: Batch size.
 - **EPOCHS**: Number of epocs.
@@ -189,6 +236,7 @@ This section of the config contains all path definitions for reading data and wr
 - **MIXED_PRECISION** Toggle mixed precision training. Necessary for training with Tensor Cores.
 - **N_FOLDS**: Cross-validation folds.
 - **MEMORY_LIMIT**: Max memory, in MB, for the virtual device configuration used for training.
+- **USE_PRETRAINED**
 - **DATA_AUG**: Data augmentation parameters.
   - **ZOOM_RANGE**
   - **HORIZONTAL_FLIP**

@@ -2,6 +2,8 @@ import os
 import datetime
 import numpy as np
 from math import ceil
+from typing import Tuple, Dict
+
 import gc
 import sys
 
@@ -17,9 +19,12 @@ from tensorflow.keras.callbacks import Callback
 from sklearn.model_selection import train_test_split, KFold
 from skopt import gp_minimize
 from skopt.space import Real, Categorical, Integer
+from wandb.keras import WandbMetricsLogger
+
 import pandas as pd
 import yaml
 import dill
+import wandb
 
 from src.models.models import *
 from src.visualization.visualization import *
@@ -30,6 +35,118 @@ cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 for device in tf.config.experimental.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(device, True)
 
+def get_training_artifacts(
+        run: wandb.sdk.wandb_run,
+        cfg: Dict[str, str]
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Get training, validation and test DataFrames from wandb artifact registry
+    :param run: wandb run
+    :param cfg: project configuration dictionary
+    :return: (Training DataFrame, validation DataFrame, test DataFrame)
+    """
+
+    # uses the latest version of Images artifact if no version is specified
+    train_val_test_version = cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'] if \
+        cfg['WANDB']['TRAIN_VAL_TEST_ARTIFACT_VERSION'] else 'latest'
+
+    # downloads previously logged artifacts
+    train_val_test_artifact = run.use_artifact(f'TrainValTest:{train_val_test_version}')
+    model_dev_artifact_version = train_val_test_artifact.metadata['model_dev_artifact_version']
+    model_dev_artifact = run.use_artifact(f'ModelDev:{model_dev_artifact_version}')
+    images_artifact_version = model_dev_artifact.metadata['images_artifact_version']
+    images_artifact = run.use_artifact(f'Images:{images_artifact_version}')
+
+    frames_dir = f"{images_artifact.download()}/images"
+    train_val_test_images_path = f"{train_val_test_artifact.download()}/images"
+
+    train_df = pd.read_csv(f"{train_val_test_images_path}/train.csv")
+    val_df = pd.read_csv(f"{train_val_test_images_path}/val.csv")
+    test_df = pd.read_csv(f"{train_val_test_images_path}/test.csv")
+
+    return train_df, val_df, test_df, frames_dir
+
+
+def train_model_single(cfg, model_def, preprocessing_fn, train_df, val_df, test_df, frames_dir, hparams,
+                       pretrained_path=None, save_weights=False, log_dir=None, verbose=True):
+    """
+    :param
+    :param model_def: Model definition function
+    :param preprocessing_fn: Model-specific preprocessing function
+    :param train_df: Training set of LUS frames
+    :param val_df: Validation set of LUS frames
+    :param test_df: Test set of LUS frames
+    :param hparams: Dict of hyperparameters
+    :param pretrained_path: Path to pretrained weights. If None, trains the network from scratch.
+    :param save_weights: Flag indicating whether to save the model's weights
+    :param log_dir: TensorBoard logs directory
+    :param verbose: Whether to print out all epoch details
+    :return: (model, test_metrics, test_generator)
+    """
+
+    # Create TF datasets for training, validation and test sets
+    train_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in train_df['Frame Path'].tolist()], train_df['Class']))
+    val_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in val_df['Frame Path'].tolist()], val_df['Class']))
+    test_set = tf.data.Dataset.from_tensor_slices(([os.path.join(frames_dir, f) for f in test_df['Frame Path'].tolist()], test_df['Class']))
+
+    # Set up preprocessing transformations to apply to each item in dataset
+    preprocessor = Preprocessor(preprocessing_fn)
+    train_set = preprocessor.prepare(train_set, shuffle=True, augment=True)
+    val_set = preprocessor.prepare(val_set, shuffle=False, augment=False)
+    test_set = preprocessor.prepare(test_set, shuffle=False, augment=False)
+
+    # Apply class imbalance strategy. We have many more X-rays negative for COVID-19 than positive.
+    histogram = np.bincount(train_df['Class'].to_numpy().astype(int))  # Get class distribution
+    class_weight = get_class_weights(histogram)
+
+    # Define performance metrics
+    n_classes = len(cfg['DATA']['CLASSES'])
+    threshold = 1.0 / n_classes # Binary classification threshold for a class
+    metrics = ['accuracy', AUC(name='auc')]
+    metrics += [Precision(name='precision_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
+    metrics += [Recall(name='recall_' + cfg['DATA']['CLASSES'][c], thresholds=threshold, class_id=c) for c in range(n_classes)]
+
+    print('Training distribution: ',
+          ['Class ' + cfg['DATA']['CLASSES'][i] + ': ' + str(histogram[i]) + '. '
+           for i in range(len(histogram))])
+    input_shape = cfg['DATA']['IMG_DIM'] + [3]
+
+    # Compute output bias
+    histogram = np.bincount(train_df['Class'].astype(int))
+    output_bias = Constant(np.log([histogram[i] / (np.sum(histogram) - histogram[i])
+                                      for i in range(histogram.shape[0])]))
+
+    # Define the model
+    model = model_def(hparams, input_shape, metrics, cfg['TRAIN']['N_CLASSES'],
+                      mixed_precision=cfg['TRAIN']['MIXED_PRECISION'], output_bias=output_bias,
+                      weights_path=pretrained_path)
+
+    # Set training callbacks.
+    callbacks = define_callbacks()
+    callbacks.append(WandbMetricsLogger())
+
+    # Train the model.
+    history = model.fit(train_set, epochs=cfg['TRAIN']['EPOCHS'], validation_data=val_set, callbacks=callbacks,
+                         verbose=verbose, class_weight=class_weight)
+
+    # Save the model's weights
+    if save_weights:
+        model_path = cfg['PATHS']['MODEL_WEIGHTS'] + 'model' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.h5'
+        if cfg['TRAIN']['MODEL_DEF'] == 'cutoffvgg16':
+            save_model(model.model, model_path)
+        else:
+            save_model(model, model_path)  # Save the model's weights
+
+    # Run the model on the test set and print the resulting performance metrics.
+    test_results = model.evaluate(test_set, verbose=1)
+    test_metrics = {}
+    test_summary_str = [['**Metric**', '**Value**']]
+    for metric, value in zip(model.metrics_names, test_results):
+        test_metrics[metric] = value
+        test_summary_str.append([metric, str(value)])
+    if log_dir is not None:
+        log_test_results(model, test_set, test_df, test_metrics, log_dir)
+    return model, test_metrics, test_set
 
 def get_class_weights(histogram):
     '''
@@ -70,7 +187,7 @@ def define_callbacks():
 
 def partition_dataset(val_split, test_split, save_dfs=True, seed=None):
     '''
-    Partition the frame_df into training, validation and test sets by patient ID
+    Partition the frame_df into training, validation and test sets by patient_id
     :param val_split: Validation split (in range [0, 1])
     :param test_split: Test split (in range [0, 1])
     :param save_dfs: Flag indicating whether to save the splits
@@ -78,14 +195,14 @@ def partition_dataset(val_split, test_split, save_dfs=True, seed=None):
     '''
 
     frame_df = pd.read_csv(cfg['PATHS']['FRAME_TABLE'])
-    all_pts = frame_df['Patient'].unique()  # Get list of patients
+    all_pts = frame_df['patient_id'].unique()  # Get list of patient_ids
     relative_val_split = val_split / (1 - (test_split))
     trainval_pts, test_pts = train_test_split(all_pts, test_size=test_split, random_state=seed)
     train_pts, val_pts = train_test_split(trainval_pts, test_size=relative_val_split, random_state=seed)
 
-    train_df = frame_df[frame_df['Patient'].isin(train_pts)]
-    val_df = frame_df[frame_df['Patient'].isin(val_pts)]
-    test_df = frame_df[frame_df['Patient'].isin(test_pts)]
+    train_df = frame_df[frame_df['patient_id'].isin(train_pts)]
+    val_df = frame_df[frame_df['patient_id'].isin(val_pts)]
+    test_df = frame_df[frame_df['patient_id'].isin(test_pts)]
 
     if not os.path.exists(cfg['PATHS']['PARTITIONS']):
         os.makedirs(cfg['PATHS']['PARTITIONS'])
@@ -234,14 +351,23 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     :param write_logs: Flag indicating whether to write any training logs to disk
     :return: Dictionary of test set performance metrics
     '''
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        for gpu in gpus:
-            tf.config.experimental.set_virtual_device_configuration(gpu, [
-                tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
-    train_df, val_df, test_df = partition_dataset(cfg['DATA']['VAL_SPLIT'], cfg['DATA']['TEST_SPLIT'],
-                                                  seed=cfg['TRAIN']['SEED'])
+    if cfg['TRAIN']['USE_MEMORY_LIMIT']:
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            for gpu in gpus:
+                tf.config.experimental.set_virtual_device_configuration(gpu, [
+                    tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
+
+    run = wandb.init(
+        project=cfg['WANDB']['PROJECT_NAME'],
+        job_type='train',
+        entity=cfg['WANDB']['ENTITY'],
+        config=cfg
+    )
+
+    train_df, val_df, test_df, frames_dir = get_training_artifacts(run, cfg)
+
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
     if write_logs:
         log_dir = os.path.join(cfg['PATHS']['LOGS'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -256,9 +382,13 @@ def train_single(hparams=None, save_weights=False, write_logs=False):
     pretrained_path = cfg['PATHS']['PRETRAINED_WEIGHTS'] if cfg['TRAIN']['USE_PRETRAINED'] else None
 
     # Train the model
-    model, test_metrics, _ = train_model(model_def, preprocessing_fn, train_df, val_df, test_df, hparams,
-                                         save_weights=save_weights, log_dir=log_dir, pretrained_path=pretrained_path)
+    model, test_metrics, _ = train_model_single(cfg, model_def, preprocessing_fn, train_df, val_df, test_df, frames_dir,
+                                                hparams, save_weights=save_weights, log_dir=log_dir,
+                                                pretrained_path=pretrained_path)
     print('Test set metrics: ', test_metrics)
+
+    wandb.finish()
+
     return test_metrics, model
 
 
@@ -295,7 +425,7 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
     else:
         log_dir = None
 
-    all_pts = frame_df['Patient'].unique()
+    all_pts = frame_df['patient_id'].unique()
     val_split = 1.0 / n_folds
     pt_k_fold = KFold(n_splits=n_folds, shuffle=True)
 
@@ -314,9 +444,9 @@ def cross_validation(frame_df=None, hparams=None, write_logs=False, save_weights
         trainval_pts = all_pts[train_index]
         train_pts, val_pts = train_test_split(trainval_pts, test_size=val_split)
         test_pts = all_pts[test_index]
-        train_df = frame_df[frame_df['Patient'].isin(train_pts)]
-        val_df = frame_df[frame_df['Patient'].isin(val_pts)]
-        test_df = frame_df[frame_df['Patient'].isin(test_pts)]
+        train_df = frame_df[frame_df['patient_id'].isin(train_pts)]
+        val_df = frame_df[frame_df['patient_id'].isin(val_pts)]
+        test_df = frame_df[frame_df['patient_id'].isin(test_pts)]
         train_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_train_set.csv'))
         val_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_val_set.csv'))
         test_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_test_set.csv'))

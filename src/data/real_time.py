@@ -1,15 +1,14 @@
+import pandas as pd
 import yaml
 import os
-import pandas as pd
+import cv2
+import glob
+from tqdm import tqdm
 
 cfg = yaml.full_load(open(os.getcwd() + "/config.yml", 'r'))
 
-COLUMNS_WANTED = ['patient_id', 'a_or_b_lines']
-
-database_query = cfg['PATHS']['DATABASE_QUERY']
 lb_annot = cfg['PATHS']['RT_LABELBOX_ANNOTATIONS']
 b_lines_3_class = cfg['DATA']['RT_B_LINES_3_CLASS']
-
 
 def get_rt_masked_clip_paths():
     '''
@@ -37,7 +36,7 @@ def get_rt_masked_clip_paths():
     return path_df
 
 
-def create_rt_ABline_dataframe(lb_annot,b_lines_3_class, preprocessed=False):
+def create_rt_ABline_dataframe(lb_annot, b_lines_3_class, preprocessed=False):
     '''
     Extracts pertinent information from Labelbox expert annotations and builds a dataframe linking clips, class, and their path
 
@@ -77,51 +76,58 @@ def create_rt_ABline_dataframe(lb_annot,b_lines_3_class, preprocessed=False):
     df = df.merge(path_df, how='outer', on='filename')
     return df
 
+def mp4_to_images(mp4_path):
+    """
+    Converts masked ultrasound mp4 video to a series of images and saves the images in the same directory.
+    :param mp4_path: File name of the mp4 file to convert to series of images.
+    """
+    vc = cv2.VideoCapture(mp4_path)
+    vid_dir, mp4_filename = os.path.split(mp4_path)  # Get folder and filename of mp4 file respectively
+    mp4_filename = mp4_filename.split('.')[0]  # Strip file extension
 
-def create_ABline_dataframe(database_query):
-    '''
-    Extracts out pertinent information from database query csv and builds a dataframe linking filenames, patients, and class
-    :database_filename: filepath to database query csv
-    '''
-    df = pd.read_csv(database_query)
+    if not os.path.exists(cfg['PATHS']['FRAMES']):
+        os.makedirs(cfg['PATHS']['FRAMES'])
 
-    # Remove all muggle clips
-    df = df[df.frame_homogeneity.isnull()]
+    idx = 0
+    image_paths = []
 
-    # Remove Non-A/Non-B line clips
-    df = df[df.a_or_b_lines != 'non_a_non_b']
+    if not os.path.isdir(cfg['PATHS']['FRAMES']):
+        os.mkdir(cfg['PATHS']['FRAMES'])
 
-    # Removes clips with unlabelled parenchymal findings
-    df = df[df.a_or_b_lines.notnull()]
-
-    # Create filename
-    df['filename'] = df['exam_id'] + "_" + df['patient_id'] + "_VID" + df["vid_id"].map(str)
-
-    # Create column of class category to each clip. 
-    # Modifiable for binary or multi-class labelling
-    df['class'] = df.apply(lambda row: 0 if row.a_or_b_lines == 'a_lines' else
-                           (1 if row.a_or_b_lines == 'b_lines_<_3' else
-                            (1 if row.a_or_b_lines == 'b_lines-_moderate_(<50%_pleural_line)' else
-                             (1 if row.a_or_b_lines == 'b_lines-_severe_(>50%_pleural_line)' else
-                               2 if row.a_or_b_lines == 'non_a_non_b' else
-                                -1))), axis=1)
-
-    # Relabel all b-line severities as a single class for A- vs. B-line classifier
-    df['a_or_b_lines'] = df['a_or_b_lines'].replace({'b_lines_<_3': 'b_lines', 'b_lines-_moderate_(<50%_pleural_line)': 'b_lines', 'b_lines-_severe_(>50%_pleural_line)': 'b_lines'})
-
-    df['Path'] = df.apply(lambda row: cfg['PATHS']['MASKED_CLIPS'] + row.filename, axis=1)
-
-    df['s3_path'] = df.apply(lambda row: row.s3_path, axis=1)
-    
-    # Finalize dataframe
-    df = df[['filename'] + COLUMNS_WANTED + ['class'] + ['Path'] + ['s3_path']]
-
-    # Save df - append this csv to the previous csv 'clips_by_patient_2.csv'
-    df.to_csv(cfg['PATHS']['CLIPS_TABLE'], index=False)
-
-    return df
+    while True:
+        ret, frame = vc.read()
+        if not ret:
+            break  # End of frames reached
+        image_path = mp4_filename + '_' + str(idx) + '.jpg'
+        image_paths.append(image_path)
+        cv2.imwrite(cfg['PATHS']['FRAMES'] + image_path, frame)  # Save all the images out
+        idx += 1
+    return image_paths
 
 
-if __name__ == "__main__":
+def create_rt_image_dataset(query_df_path):
+    """
+    Create a dataset of frames for real_time data, including their class
+    :param query_df_path: File name of the CSV file containing the database query results for clips
+    """
+
+    query_df = pd.read_csv(query_df_path)
+    clip_dfs = []
+
+    for index, row in tqdm(query_df.iterrows()):
+        for mp4_file in glob.glob(row['Path'] + '/' + row['filename'] + '.mp4'):
+            image_paths = mp4_to_images(mp4_file)  # Convert mp4 encounter file to image files
+            # Real-time clips aren't associated with patient IDs
+            clip_df = pd.DataFrame({'Frame Path': image_paths, 'Class': row['class'],
+                                    'Class Name': cfg['DATA']['CLASSES'][row['class']]})
+
+            clip_dfs.append(clip_df)
+    all_clips_df = pd.concat(clip_dfs, axis=0, ignore_index=True)
+    all_clips_df.to_csv(cfg['PATHS']['FRAME_TABLE'], index=False)
+    return
+
+
+if __name__ == '__main__':
     create_rt_ABline_dataframe(lb_annot, b_lines_3_class)
-    #create_ABline_dataframe(database_query)
+    create_rt_image_dataset(cfg['PATHS']['CLIPS_TABLE'])
+

@@ -1,10 +1,11 @@
 PATHS:
   CLIPS_TABLE: 'data/clips_by_patients_cropped.csv'
   FRAME_TABLE: 'data/frames_actually_cropped.csv' #'data/frames.csv'   # Path to all LUS frames in the dataset
-  DATABASE_QUERY: 'data/parenchymal_clips.csv'
+  QUERY_TABLE: 'data/clips.csv'
+  DATABASE_QUERY: 'data/clips_query.sql'
   RAW_CLIPS: 'data/raw_clips/'
   MASKED_CLIPS: 'data/masked_clips/'
-  FRAMES: 'B:/Datasets/AB/data_actually_cropped'
+  FRAMES: 'data/data_actually_cropped/'
   PARTITIONS: 'data/partitions/'
   TEST_DF: 'data/partitions/test_set_final.csv'
   EXT_VAL_CLIPS_TABLE: 'data/clips_by_patient_mini.csv'
@@ -23,24 +24,52 @@ PATHS:
   PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
+  AUTOMASK_MODEL_PATH: 'data/auto_masking_deeper.h5'
+  HOLDOUT_CLIPS_PATH: 'data/holdout_clips.csv'
+  HOLDOUT_FRAMES_PATH: 'data/holdout_frames.csv'
+  MODEL_DEV_CLIPS_PATH: 'data/model_dev_clips.csv'
+  MODEL_DEV_FRAMES_PATH: 'data/model_dev_frames.csv'
+  K_FOLDS_SPLIT_PATH: 'data/'
+
+
+WANDB:
+  ENTITY: 'deep-breathe'
+  PROJECT_NAME: 'ab_line'
+  LOGGING:
+    IMAGES: False
+    MODEL_DEV_HOLDOUT: False
+    K_FOLD_CROSS_VAL: False
+    TRAIN_VAL_TEST: False
+  IMAGES_ARTIFACT_VERSION: ''
+  MODEL_DEV_ARTIFACT_VERSION: ''
+  TRAIN_VAL_TEST_ARTIFACT_VERSION: ''
+  ARTIFACT_SEED: 42
 
 DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
+  HOLDOUT_ARTIFACT_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
   RT_B_LINES_3_CLASS: 'b_lines'
+  REAL_TIME_DATA: False
+  AUTOMASK:
+    VERSION: 'wavebase'
+    OUTPUT_FORMAT: 'mp4'
+    EDGE_PRESERVE: 0.95
+    SAVE_CROPPED_ROI: True
 
 TRAIN:
-  MODEL_DEF: 'mobilenetv2'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
+  MODEL_DEF: 'cutoffvgg16'   # One of {'vgg16', 'mobilenetv2', 'xception', 'efficientnetb7', 'custom_resnetv2', 'cutoffvgg16'}
   EXPERIMENT_TYPE: 'single_train'               # One of {'single_train', 'cross_validation', 'hparam_search'}
   SEED: 10001
   N_CLASSES: 2
-  BATCH_SIZE: 256
+  BATCH_SIZE: 64
   EPOCHS: 30
   PATIENCE: 15
   MIXED_PRECISION: false                         # Necessary for training with Tensor Cores
-  N_FOLDS: 10
+  N_FOLDS: 5
+  USE_MEMORY_LIMIT: False
   MEMORY_LIMIT: 21672
   USE_PRETRAINED: False
   DATA_AUG:
