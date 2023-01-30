@@ -2,7 +2,7 @@ import os
 import datetime
 import numpy as np
 from math import ceil
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
 
 import gc
 import sys
@@ -90,7 +90,8 @@ def train_classifier(
         class_weight: Dict,
         pretrained_path: str = None,
         save_weights: bool = False,
-        verbose: bool = True):
+        verbose: bool = True
+) -> tf.keras.Model:
     """
     :param model_def: Model definition function
     :param train_set: Training set of LUS frames
@@ -121,6 +122,7 @@ def train_classifier(
 
     # Set training callbacks.
     callbacks = define_callbacks(cfg['TRAIN']['LOG_FREQ'])
+    # Adds evaluation callback to generate prediction data at the end of each epoch
     callbacks.append(
         WandbGradcamEvalCallback(
             val_set=val_set,
@@ -144,12 +146,12 @@ def train_classifier(
     return model
 
 
-def define_callbacks(log_freq: int):
-    '''
+def define_callbacks(log_freq: int) -> List[tf.keras.callbacks.Callback]:
+    """
     Defines a list of Keras callbacks to be applied to model training loop
     :param log_freq: integer that represents after how many batches metrics are logged on wandb
     :return: list of Keras callbacks
-    '''
+    """
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
 
@@ -243,53 +245,61 @@ def perform_single_run(
     wandb.finish()
 
 
-def configure_hyperparameter_sweep() -> None:
+def configure_hyperparameter_sweep(
+        project_name: str,
+        entity_name: str,
+        sweep_method: str,
+        sweep_metric_goal: str,
+        sweep_metric_name: str,
+        experiment_sweep_config: Dict
+) -> int:
     """
     Translates experiment configuration into a wandb sweep configuration
+    :param project_name: name of wandb project
+    :param entity_name: name of wandb entity
     """
 
-    sweep_cfg = {
-        'method': 'bayes',
+    wandb_sweep_cfg = {
+        'method': sweep_method,
         'metric': {
-            'goal': 'maximize',
-            'name': 'epoch/val_auc'
+            'goal': sweep_metric_goal,
+            'name': sweep_metric_name
         },
         'parameters': {}
     }
 
-    # Translation from config parameters to wandb sweep configuration parameters
-    model_name = cfg['TRAIN']['MODEL_DEF'].upper()
-    for hparam_name in cfg['HPARAM_SEARCH'][model_name]:
-        if cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'] is not None:
+    # Translation from config file parameters to wandb sweep configuration parameters
+    for hparam_name in experiment_sweep_config:
+        if experiment_sweep_config[hparam_name]['RANGE'] is not None:
             parameter_config = {}
-            if cfg['HPARAM_SEARCH'][model_name][hparam_name]['TYPE'] == 'set':
+            if experiment_sweep_config[hparam_name]['TYPE'] == 'set':
                 parameter_config['distribution'] = 'categorical'
-                parameter_config['values'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE']
-            elif cfg['HPARAM_SEARCH'][model_name][hparam_name]['TYPE'] == 'int_uniform':
+                parameter_config['values'] = experiment_sweep_config[hparam_name]['RANGE']
+            elif experiment_sweep_config[hparam_name]['TYPE'] == 'int_uniform':
                 parameter_config['distribution'] = 'int_uniform'
-                parameter_config['min'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][0]
-                parameter_config['max'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][1]
-            elif cfg['HPARAM_SEARCH'][model_name][hparam_name]['TYPE'] == 'float_log':
+                parameter_config['min'] = experiment_sweep_config[hparam_name]['RANGE'][0]
+                parameter_config['max'] = experiment_sweep_config[hparam_name]['RANGE'][1]
+            elif experiment_sweep_config[hparam_name]['TYPE'] == 'float_log':
                 parameter_config['distribution'] = 'log_uniform_values'
-                parameter_config['min'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][0]
-                parameter_config['max'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][1]
-            elif cfg['HPARAM_SEARCH'][model_name][hparam_name]['TYPE'] == 'float_uniform':
+                parameter_config['min'] = experiment_sweep_config[hparam_name]['RANGE'][0]
+                parameter_config['max'] = experiment_sweep_config[hparam_name]['RANGE'][1]
+            elif experiment_sweep_config[hparam_name]['TYPE'] == 'float_uniform':
                 parameter_config['distribution'] = 'uniform'
-                parameter_config['min'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][0]
-                parameter_config['max'] = cfg['HPARAM_SEARCH'][model_name][hparam_name]['RANGE'][1]
-            sweep_cfg['parameters'][hparam_name] = parameter_config
+                parameter_config['min'] = experiment_sweep_config[hparam_name]['RANGE'][0]
+                parameter_config['max'] = experiment_sweep_config[hparam_name]['RANGE'][1]
+            wandb_sweep_cfg['parameters'][hparam_name] = parameter_config
 
     # Initialize sweep
     sweep_id = wandb.sweep(
-        project=cfg['WANDB']['PROJECT_NAME'],
-        entity=cfg['WANDB']['ENTITY'],
-        sweep=sweep_cfg
+        project=project_name,
+        entity=entity_name,
+        sweep=wandb_sweep_cfg
     )
 
     return sweep_id
 
 
-def train_experiment(experiment='single_train', save_weights=False):
+def train_experiment(experiment: str = 'single_train', save_weights: bool = False) -> None:
     """
     Run a training experiment
     :param experiment: String defining which experiment to run
@@ -300,9 +310,19 @@ def train_experiment(experiment='single_train', save_weights=False):
     if experiment == 'single_train':
         perform_single_run(save_weights=save_weights)
     elif experiment == 'hparam_search':
-        sweep_id = configure_hyperparameter_sweep()
+        model_name = cfg['TRAIN']['MODEL_DEF'].upper()
+        experiment_sweep_config = cfg['HPARAM_SEARCH'][model_name]
+        sweep_id = configure_hyperparameter_sweep(
+            project_name=cfg['WANDB']['PROJECT_NAME'],
+            entity_name=cfg['WANDB']['ENTITY'],
+            sweep_method=cfg['TRAIN']['HPARAM_SEARCH']['METHOD'],
+            sweep_metric_goal=cfg['TRAIN']['HPARAM_SEARCH']['METRIC_GOAL'],
+            sweep_metric_name=cfg['TRAIN']['HPARAM_SEARCH']['METRIC_NAME'],
+            experiment_sweep_config=experiment_sweep_config
+        )
         wandb.agent(sweep_id, function=perform_single_run, count=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'])
     elif experiment == 'cross_validation':
+        # creates group id to be used for runs within the cross-fold validation iteration
         val_group_id = f'kfold-{wandb.util.generate_id()}'
         n_folds = get_n_folds(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
                               artifact_version=cfg['WANDB']['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])

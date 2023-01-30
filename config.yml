@@ -21,7 +21,7 @@ PATHS:
   METRICS: './results/metrics/'
   EXPERIMENTS: './results/experiments/'
   EXPERIMENT_VISUALIZATIONS: './img/experiments/'
-  PRETRAINED_WEIGHTS: 'B:\\Documents\\Work\\DeepBreathe\\projects\\ssl_ab\\backbones\\simclr\\20220918-120648_mobilenetv2'
+  PRETRAINED_WEIGHTS: 'data/pretrained_weights/'
   RT_ROOT_DIR: 'data/WB-Prospective-Data-Trimmed/'
   RT_LABELBOX_ANNOTATIONS: 'data/processed_labelbox_phase1.csv'
   AUTOMASK_MODEL_PATH: 'data/auto_masking_deeper.h5'
@@ -29,7 +29,7 @@ PATHS:
   HOLDOUT_FRAMES_PATH: 'data/holdout_frames.csv'
   MODEL_DEV_CLIPS_PATH: 'data/model_dev_clips.csv'
   MODEL_DEV_FRAMES_PATH: 'data/model_dev_frames.csv'
-  K_FOLDS_SPLIT_PATH: 'data/'
+  K_FOLDS_SPLIT_PATH: 'data/partitions/'
 
 
 WANDB:
@@ -50,6 +50,7 @@ DATA:
   IMG_DIM: [128, 128]
   VAL_SPLIT: 0.1
   TEST_SPLIT: 0.1
+  K_FOLD_VALIDATION_SPLIT: 0.1
   HOLDOUT_ARTIFACT_SPLIT: 0.1
   CLASSES: ['a_lines', 'b_lines']   # Classes for binary classification
   RT_B_LINES_3_CLASS: 'b_lines'
@@ -84,7 +85,9 @@ TRAIN:
     BRIGHTNESS_RANGE: 0.3
   HPARAM_SEARCH:
     N_EVALS: 10
-    HPARAM_OBJECTIVE: 'auc'
+    METHOD: 'bayes'
+    METRIC_GOAL: 'maximize'
+    METRIC_NAME: 'epoch/val_auc'
 
 CLIP_PREDICTION:
   ALGORITHM: 'average'       # One of "contiguous", "sliding_window" or "average"

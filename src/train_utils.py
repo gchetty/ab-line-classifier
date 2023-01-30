@@ -10,6 +10,7 @@ import tensorflow as tf
 from wandb.keras import WandbEvalCallback
 
 from src.data.preprocessor import Preprocessor
+from src.data.artifact_logging import group_train_test_split
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 
@@ -210,38 +211,38 @@ def get_fold_artifact(
     frames_dir = f"{images_artifact.download()}/frames"
     k_folds_dir = f"{k_folds_artifact.download()}"
 
+    random_seed = k_folds_artifact.metadata['random_seed']
+    val_split = k_folds_artifact.metadata['val_split']
+
     # Create a train_df from all folds except validation fold
-    train_dfs = []
-    val_df = None
+    train_val_dfs = []
+    test_df = None
     for filename in os.listdir(k_folds_dir):
         cur_fold_id = int(filename.split('_')[-1])
         fold_frames_path = os.path.join(k_folds_dir, filename, 'frames.csv')
         if cur_fold_id == fold_id:
-            val_df = pd.read_csv(fold_frames_path)
+            test_df = pd.read_csv(fold_frames_path)
         else:
-            train_dfs.append(pd.read_csv(fold_frames_path))
-    train_df = pd.concat(train_dfs)
+            train_val_dfs.append(pd.read_csv(fold_frames_path))
+    train_val_df = pd.concat(train_val_dfs)
 
-    # No test_df for k-fold cross-validation
-    test_df = None
+    train_df, val_df = group_train_test_split(train_val_df, test_size=val_split, group_key='patient_id',
+                                              target_key='Class', random_seed=random_seed)
 
     return train_df, val_df, test_df, frames_dir
 
-
+# Evaluation callback generates prediction visualizations at the end of each epoch
 class WandbGradcamEvalCallback(WandbEvalCallback):
     def __init__(self, val_set, data_table_columns, pred_table_columns):
         super().__init__(data_table_columns, pred_table_columns)
-
         self.val_set = val_set
 
-        self.x = []
-        self.y = []
-
     def add_ground_truth(self, logs: Optional[Dict[str, float]] = None) -> None:
+        """
+        Add validation ground truth data to the callback's data table. Runs at training start.
+        :param logs: optional wandb logs
+        """
         for idx, (image, label) in enumerate(self.val_set.unbatch()):
-            # self.x.append(image)
-            # self.y.append(label)
-
             self.data_table.add_data(
                 idx,
                 wandb.Image(image),
@@ -251,9 +252,15 @@ class WandbGradcamEvalCallback(WandbEvalCallback):
     def add_model_predictions(
         self, epoch: int, logs: Optional[Dict[str, float]] = None
     ) -> None:
+        """
+        Adds prediction data to the callback's prediction table. Run's at epoch end.
+        :param logs: optional wandb logs
+        """
 
+        # Gets predictions using the latest model weights on validation data
         probs, preds = self._inference()
 
+        # Gets the reference of data table previously logged (saves memory)
         data_table_ref = self.data_table_ref
         table_idxs = data_table_ref.get_index()
 
@@ -267,9 +274,13 @@ class WandbGradcamEvalCallback(WandbEvalCallback):
                 preds[idx]
             )
 
-    def _inference(self):
+    def _inference(self) -> Tuple[List, List]:
+        """
+        Uses the latest model to generate class predictions and their associated probabilities on validation data.
+        """
         preds = []
         probs = []
+
         for image, label in self.val_set.unbatch():
             prob = np.array(self.model(tf.expand_dims(image, axis=0)))
             pred = np.argmax(prob, axis=-1)[0]
