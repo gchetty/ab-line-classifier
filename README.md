@@ -203,6 +203,7 @@ This section of the config is specifically related to WandB MLOps tool.
 - **IMAGES_ARTIFACT_VERSION**: Version of Images artifact to use for logging.
 - **MODEL_DEV_ARTIFACT_VERSION**: Version of ModelDev artifact to use for logging.
 - **TRAIN_VAL_TEST_ARTIFACT_VERSION**: Version of TrainValTest artifact to use for logging or training.
+- **K_FOLD_CROSS_VAL_ARTIFACT_VERSION**: Version of KFoldCrossValidation artifact to use for logging or training.
 - **ARTIFACT_SEED**: Random number generator seed used to generate an artifact. Stored in artifact metadata.
 </details>
 
@@ -210,8 +211,9 @@ This section of the config is specifically related to WandB MLOps tool.
 <summary>Data</summary>
 
 - **IMG_DIM**: Dimensions for frame resizing.
-- **VAL_SPLIT**: Validation split.
-- **TEST_SPLIT**: Test split.
+- **VAL_SPLIT**: Validation split. Note this split is with reference to train, val and test data.
+- **TEST_SPLIT**: Test split. Note this split is with reference to train, val and test data.
+- **K_FOLD_VALIDATION_SPLIT**: Validation split for K-Fold data. Note this split is with reference to only train and  val data. Test is the fold for k-fold cross-validation.
 - **HOLDOUT_ARTIFACT_SPLIT**: Split used for splitting ModelDev data and Holdout data.
 - **CLASSES**: A string list of data classes.
 - **RT_B_LINES_3_CLASS**
@@ -246,8 +248,10 @@ This section of the config is specifically related to WandB MLOps tool.
   - **ROTATION_RANGE**
   - **BRIGHTNESS_RANGE**
 - **HPARAM_SEARCH**: 
-  - **N_EVALS**: Number of iteration in the bayesian hyperparamter search.
-  - **HPARAM_OBJECTIVE**: String identifier for the metric to be optimized by bayesian hyperparamter search.
+  - **N_EVALS**: Number of iterations in the hyperparameter search.
+  - **METHOD**: String identifier for method/algorithm used to perform hyperparameter search.
+  - **METRIC_GOAL**: Determines whether the metric should be minimized or maximized in the hyperparameter search.
+  - **METRIC_NAME**: String identifier for name of the metric to be optimized in the hyperparameter search.
 </details>
 
 <details closed> 

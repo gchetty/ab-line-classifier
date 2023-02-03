@@ -170,8 +170,6 @@ def define_callbacks(log_freq: int) -> List[tf.keras.callbacks.Callback]:
 
 def perform_single_run(
         save_weights: bool = False,
-        group_id: Optional[str] = None,
-        fold_id: Optional[int] = None,
 ) -> None:
     """
     Used to perform a single training run. Used in a variety of contexts - single training, cross-val, hyper-param search
@@ -190,14 +188,19 @@ def perform_single_run(
                 tf.config.experimental.set_virtual_device_configuration(gpu, [
                     tf.config.experimental.VirtualDeviceConfiguration(cfg['TRAIN']['MEMORY_LIMIT'])])
 
+    # Sweep id environment variable is only needed to configure group for cross-validation
+    sweep_id = os.environ['WANDB_SWEEP_ID'] if cfg['TRAIN']['EXPERIMENT_TYPE'] == 'cross_validation' else None
     # Initialize wandb run based on experiment type
     run = initialize_wandb_run(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
-                               experiment_type=cfg['TRAIN']['EXPERIMENT_TYPE'], group_id=group_id)
+                               experiment_type=cfg['TRAIN']['EXPERIMENT_TYPE'], sweep_id=sweep_id)
 
     # Code to get default hyperparameters from config unless overridden by sweep
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     run.config.setdefaults(cfg['HPARAMS'][model_name])
     hparams = dict(wandb.config)
+
+    # Get fold id from config set by sweep for cross-validation
+    fold_id = wandb.config.FOLD_ID if cfg['TRAIN']['EXPERIMENT_TYPE'] == 'cross_validation' else None
 
     # Store additional configuration information in wandb run
     wandb.config.update({
@@ -207,8 +210,6 @@ def perform_single_run(
             'IMG_DIM': cfg['DATA']['IMG_DIM']
         }
     })
-    if fold_id is not None:
-        wandb.config.update({'FOLD_ID': fold_id})
 
     model_def, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
 
@@ -252,11 +253,16 @@ def configure_hyperparameter_sweep(
         sweep_metric_goal: str,
         sweep_metric_name: str,
         experiment_sweep_config: Dict
-) -> int:
+) -> str:
     """
     Translates experiment configuration into a wandb sweep configuration
     :param project_name: name of wandb project
     :param entity_name: name of wandb entity
+    :param sweep_method: algorithm used to perform hyperparameter search
+    :param sweep_metric_goal: whether the metric to be optimized should be maximized or minimized
+    :param sweep_metric_name: the metric to be optimized in the sweep
+    :param experiment_sweep_config: config from config file for the hyperparameters to be tuned
+    :return: str for a unique identifier for the sweep
     """
 
     wandb_sweep_cfg = {
@@ -298,6 +304,41 @@ def configure_hyperparameter_sweep(
 
     return sweep_id
 
+def configure_kfold_sweep(
+        project_name: str,
+        entity_name: str,
+        artifact_version: str,
+) -> str:
+    """
+    Translates experiment configuration into a wandb sweep configuration
+    :param project_name: name of wandb project
+    :param entity_name: name of wandb entity
+    :param artifact_version: version of KFoldCrossValidation artifact stored in wandb
+    :return: str for a unique identifier for the sweep
+    """
+
+    # Gets the number of folds from the desired k-folds artifact version
+    n_folds = get_n_folds(project_name=project_name, entity_name=entity_name, artifact_version=artifact_version)
+    fold_id_values = [fold_id for fold_id in range(n_folds)]
+
+    # Generates a grid search to go through every fold_id value
+    wandb_sweep_cfg = {
+        'method': 'grid',
+        'parameters': {
+            'FOLD_ID': {
+                'values': fold_id_values
+            }
+        }
+    }
+
+    # Initialize sweep
+    sweep_id = wandb.sweep(
+        project=project_name,
+        entity=entity_name,
+        sweep=wandb_sweep_cfg
+    )
+
+    return sweep_id
 
 def train_experiment(experiment: str = 'single_train', save_weights: bool = False) -> None:
     """
@@ -322,13 +363,9 @@ def train_experiment(experiment: str = 'single_train', save_weights: bool = Fals
         )
         wandb.agent(sweep_id, function=perform_single_run, count=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'])
     elif experiment == 'cross_validation':
-        # creates group id to be used for runs within the cross-fold validation iteration
-        val_group_id = f'kfold-{wandb.util.generate_id()}'
-        n_folds = get_n_folds(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
-                              artifact_version=cfg['WANDB']['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])
-        for fold_id in range(n_folds):
-            perform_single_run(group_id=val_group_id, fold_id=fold_id)
-
+        sweep_id = configure_kfold_sweep(project_name=cfg['WANDB']['PROJECT_NAME'], entity_name=cfg['WANDB']['ENTITY'],
+                                         artifact_version=cfg['WANDB']['K_FOLD_CROSS_VAL_ARTIFACT_VERSION'])
+        wandb.agent(sweep_id, function=perform_single_run)
     else:
         raise Exception("Invalid entry in TRAIN > EXPERIMENT_TYPE field of config.yml.")
     return

@@ -125,7 +125,7 @@ def initialize_wandb_run(
         project_name: str,
         entity_name: str,
         experiment_type: str,
-        group_id: Optional[str] = None
+        sweep_id: Optional[str] = None
 ) -> wandb.sdk.wandb_run:
     """
     Generates a wandb run type based on the experiment. This allows the same training function to be used for different
@@ -133,7 +133,7 @@ def initialize_wandb_run(
     :param project_name: name of wandb project
     :param entity_name: name of wandb entity
     :param experiment_type: defines what type of experiment is being run
-    :param group_id: optional argument to be used for cross-validation
+    :param sweep_id: optional sweep_id argument to be used for cross-validation group id creation
     """
 
     # mapping to config experiment names to wandb job type names
@@ -142,6 +142,9 @@ def initialize_wandb_run(
         'cross_validation': 'k_fold_cross_val',
         'hparam_search': 'hparam_search'
     }
+
+    # generate a group id for k-fold experiments only
+    group_id = f'kfold-{sweep_id}' if experiment_type == 'cross_validation' else None
 
     job_type = experiment_job_type_mapping[experiment_type]
 
@@ -165,7 +168,7 @@ def get_n_folds(
     Gets the number of folds in the KFoldCrossValidation artifact
     :param project_name: name of wandb project
     :param entity_name: name of wandb entity
-    :param artifact_version: version of artifact stored in wandb
+    :param artifact_version: version of KFoldCrossValidation artifact stored in wandb
     :return: number of folds in the KFoldCrossValidation artifact
     """
 
