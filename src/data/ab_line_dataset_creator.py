@@ -19,6 +19,7 @@ class ABLineDatasetCreator(DatasetCreator):
     Class used to automate the creation of a retrospective dataset for A vs. B line classification.
     Automates the whole process from sql query to final dataset frames that are fed into the model.
     """
+
     def __init__(self, cfg, database_cfg):
         super().__init__(cfg)
         self.database_cfg = database_cfg
@@ -114,14 +115,21 @@ class ABLineDatasetCreator(DatasetCreator):
         # Removes clips with unlabelled parenchymal findings
         df = df[df.a_or_b_lines.notnull()]
 
+        label_to_class_map = {
+            'a_lines': 0,
+            'b_lines_<_3': 1,
+            'b_lines-_moderate_(<50%_pleural_line)': 1,
+            'b_lines-_severe_(>50%_pleural_line)': 1,
+            'b_lines_moderate_50_pleural_line': 1,
+            'b_lines_3': 1,
+            'b_lines_severe_50_pleural_line': 1,
+            'non_a_non_b': 2
+        }
+
         # Create column of class category to each clip. 
         # Modifiable for binary or multi-class labelling
-        df['class'] = df.apply(lambda row: 0 if row.a_or_b_lines == 'a_lines' else
-        (1 if row.a_or_b_lines == 'b_lines_<_3' else
-         (1 if row.a_or_b_lines == 'b_lines-_moderate_(<50%_pleural_line)' else
-          (1 if row.a_or_b_lines == 'b_lines-_severe_(>50%_pleural_line)' else
-           2 if row.a_or_b_lines == 'non_a_non_b' else
-           -1))), axis=1)
+        df['class'] = df.apply(lambda row: label_to_class_map[row.a_or_b_lines] if row.a_or_b_lines
+                                                                                in label_to_class_map else -1, axis=1)
 
         # Relabel all b-line severities as a single class for A- vs. B-line classifier
         df['a_or_b_lines'] = df['a_or_b_lines'].replace(

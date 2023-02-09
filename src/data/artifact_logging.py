@@ -297,6 +297,7 @@ def log_k_fold_cross_val(
                 'model_dev_artifact_version': model_dev_artifact.version,
                 'n_folds': cfg['TRAIN']['N_FOLDS'],
                 'random_seed': cfg['WANDB']['ARTIFACT_SEED'],
+                'val_split': cfg['DATA']['K_FOLD_VALIDATION_SPLIT']
             }
         )
 
